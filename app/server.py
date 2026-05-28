@@ -1,0 +1,332 @@
+from __future__ import annotations
+
+import json
+import mimetypes
+import os
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlparse
+
+from app.exporter import export_problem_package
+from app.generator import create_problem_draft, generate_problem
+from app.models import ProblemRequest
+from app.reviewer import review_problem
+from app.store import ProblemStore, WorkflowStore
+from app.validator import ValidationError, validate_problem
+from app.workflow import advance_workflow, apply_problem_patch, create_workflow
+
+
+ROOT = Path(__file__).resolve().parents[1]
+STORE = ProblemStore(ROOT / "data" / "problems")
+WORKFLOW_STORE = WorkflowStore(ROOT / "data" / "workflows")
+PACKAGE_ROOT = ROOT / "data" / "packages"
+STATIC_ROOT = ROOT / "static"
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "AlgoQuestionMVP/0.1"
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == "/":
+            self._static("index.html")
+            return
+        if parsed.path.startswith("/static/"):
+            self._static(parsed.path.removeprefix("/static/"))
+            return
+        if parsed.path == "/healthz":
+            self._json(HTTPStatus.OK, {"ok": True})
+            return
+        if parsed.path == "/api/problems":
+            self._json(HTTPStatus.OK, {"list": [_summary(p) for p in STORE.list()]})
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/reports"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/reports")
+            self._reports(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/workflow"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/workflow")
+            self._workflow(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/"):
+            problem_id = parsed.path.removeprefix("/api/problems/")
+            try:
+                self._json(HTTPStatus.OK, STORE.get(problem_id).to_dict())
+            except KeyError:
+                self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+            return
+        self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/problems/generate":
+            self._generate()
+            return
+        if parsed.path == "/api/workflows/start":
+            self._start_workflow()
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/workflow/continue"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/workflow/continue")
+            self._continue_workflow(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/edit"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/edit")
+            self._edit_problem(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/validate"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/validate")
+            self._validate(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/review"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/review")
+            self._review(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/package"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/package")
+            self._package(problem_id)
+            return
+        self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _generate(self) -> None:
+        try:
+            body = self._read_json()
+            req = _problem_request_from_body(body)
+            count = max(1, min(req.count, 5))
+            problems = []
+            for _ in range(count):
+                problem = generate_problem(req)
+                STORE.save(problem)
+                problems.append(problem.to_dict())
+            self._json(HTTPStatus.OK, {"list": problems})
+        except Exception as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+
+    def _start_workflow(self) -> None:
+        try:
+            body = self._read_json()
+            req = _problem_request_from_body(body)
+            manual_steps = body.get("manual_steps")
+            if not isinstance(manual_steps, list):
+                manual_steps = ["statement"]
+            problem = create_problem_draft(req)
+            STORE.save(problem)
+            workflow = create_workflow(problem, req, [str(step) for step in manual_steps])
+            workflow, result = advance_workflow(workflow, problem, PACKAGE_ROOT)
+            problem = result.get("problem", problem)
+            result = _public_workflow_result(result)
+            STORE.save(problem)
+            WORKFLOW_STORE.save(workflow)
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "problem": problem.to_dict(),
+                    "workflow": workflow.to_dict(),
+                    "result": result,
+                },
+            )
+        except Exception as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+
+    def _workflow(self, problem_id: str) -> None:
+        try:
+            self._json(HTTPStatus.OK, WORKFLOW_STORE.get(problem_id).to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "workflow not found"})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _continue_workflow(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            workflow = WORKFLOW_STORE.get(problem_id)
+            body = self._read_json(default={})
+            if isinstance(body.get("patch"), dict):
+                problem = apply_problem_patch(problem, body["patch"])
+                STORE.save(problem)
+            workflow, result = advance_workflow(
+                workflow,
+                problem,
+                PACKAGE_ROOT,
+                confirm_current=bool(body.get("confirm_current", True)),
+            )
+            problem = result.get("problem", problem)
+            result = _public_workflow_result(result)
+            STORE.save(problem)
+            WORKFLOW_STORE.save(workflow)
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "problem": problem.to_dict(),
+                    "workflow": workflow.to_dict(),
+                    "result": result,
+                },
+            )
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem or workflow not found"})
+        except ValidationError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _edit_problem(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            body = self._read_json(default={})
+            patch = body.get("patch", body)
+            if not isinstance(patch, dict):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "patch must be an object"})
+                return
+            problem = apply_problem_patch(problem, patch)
+            STORE.save(problem)
+            self._json(HTTPStatus.OK, problem.to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _validate(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            body = self._read_json(default={})
+            rounds = int(body.get("rounds", 100))
+            report = validate_problem(problem, rounds=max(1, min(rounds, 1000)))
+            self._json(HTTPStatus.OK, report.to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValidationError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _reports(self, problem_id: str) -> None:
+        try:
+            STORE.get(problem_id)
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+            return
+
+        package_dir = PACKAGE_ROOT / problem_id
+        review = _read_json_file(package_dir / "review_report.json")
+        validation = _read_json_file(package_dir / "validation_report.json")
+        package = None
+        if package_dir.exists():
+            package = {"package_dir": str(package_dir)}
+
+        self._json(
+            HTTPStatus.OK,
+            {
+                "problem_id": problem_id,
+                "review": review,
+                "validation": validation,
+                "package": package,
+            },
+        )
+
+    def _review(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            self._json(HTTPStatus.OK, review_problem(problem).to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _package(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            body = self._read_json(default={})
+            rounds = int(body.get("rounds", 100))
+            validation = validate_problem(problem, rounds=max(1, min(rounds, 1000)))
+            review = review_problem(problem)
+            package_dir = export_problem_package(problem, PACKAGE_ROOT, validation, review)
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "problem_id": problem.id,
+                    "package_dir": str(package_dir),
+                    "validation": validation.to_dict(),
+                    "review": review.to_dict(),
+                },
+            )
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValidationError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _read_json(self, default: dict | None = None) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length == 0:
+            return default if default is not None else {}
+        raw = self.rfile.read(length).decode("utf-8")
+        return json.loads(raw)
+
+    def _json(self, status: HTTPStatus, payload: dict) -> None:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(status.value)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _static(self, name: str) -> None:
+        safe_name = name.strip("/")
+        path = (STATIC_ROOT / safe_name).resolve()
+        if not str(path).startswith(str(STATIC_ROOT.resolve())) or not path.exists() or path.is_dir():
+            self._json(HTTPStatus.NOT_FOUND, {"error": "static file not found"})
+            return
+        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK.value)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def _summary(problem) -> dict:
+    return {
+        "id": problem.id,
+        "title": problem.title,
+        "topic": problem.topic,
+        "difficulty": problem.difficulty,
+        "tags": problem.tags,
+        "created_at": problem.created_at,
+        "source": problem.source,
+        "statement_language": problem.statement_language,
+    }
+
+
+def _read_json_file(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _problem_request_from_body(body: dict) -> ProblemRequest:
+    return ProblemRequest(
+        topic=str(body.get("topic", "array")),
+        difficulty=str(body.get("difficulty", "easy")),
+        language=str(body.get("language", "python")),
+        statement_language=str(body.get("statement_language", body.get("natural_language", "zh"))),
+        count=int(body.get("count", 1)),
+        use_llm=bool(body.get("use_llm", True)),
+    )
+
+
+def _public_workflow_result(result: dict) -> dict:
+    return {key: value for key, value in result.items() if key != "problem"}
+
+
+def main() -> None:
+    host = os.getenv("ALGO_HOST", "127.0.0.1")
+    port = int(os.getenv("ALGO_PORT", "18081"))
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    print(f"algo-question-mvp listening on http://{host}:{port}")
+    httpd.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

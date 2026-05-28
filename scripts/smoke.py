@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import urllib.request
+from typing import Any
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run end-to-end smoke checks against the MVP server.")
+    parser.add_argument("--base-url", default="http://127.0.0.1:18081")
+    parser.add_argument("--include-llm", action="store_true")
+    args = parser.parse_args()
+
+    base_url = args.base_url.rstrip("/")
+    results: list[str] = []
+
+    health = _get_json(f"{base_url}/healthz")
+    _assert(health.get("ok") is True, "healthz returned ok")
+    results.append("healthz ok")
+
+    index_html = _get_text(f"{base_url}/")
+    _assert("算法出题工作台" in index_html, "frontend index contains title")
+    results.append("frontend index ok")
+
+    mock_problem_id = _run_problem_flow(base_url, use_llm=False, topic="string", rounds=30)
+    results.append(f"mock flow ok: {mock_problem_id}")
+
+    zh_problem = _post_json(
+        f"{base_url}/api/problems/generate",
+        {
+            "topic": "array",
+            "difficulty": "easy",
+            "count": 1,
+            "use_llm": False,
+        },
+        timeout=30,
+    )["list"][0]
+    _assert(zh_problem["statement_language"] == "zh", "default statement language is Chinese")
+    _assert("给定" in zh_problem["statement"], "default mock statement is Chinese")
+    results.append(f"default chinese ok: {zh_problem['id']}")
+
+    workflow = _post_json(
+        f"{base_url}/api/workflows/start",
+        {
+            "topic": "循环",
+            "difficulty": "easy",
+            "statement_language": "zh",
+            "count": 1,
+            "use_llm": False,
+            "manual_steps": ["statement"],
+        },
+        timeout=30,
+    )
+    problem_id = workflow["problem"]["id"]
+    _assert(workflow["workflow"]["status"] == "waiting_user", "workflow stops for manual statement step")
+    _assert(workflow["workflow"]["current_step"] == "statement", "workflow is waiting at statement step")
+    _assert(workflow["problem"]["constraints"] == [], "constraints are not generated before statement confirmation")
+    _assert(workflow["problem"]["reference_solution"] == "", "solutions are not generated before statement confirmation")
+    continued = _post_json(
+        f"{base_url}/api/problems/{problem_id}/workflow/continue",
+        {
+            "confirm_current": True,
+            "patch": {
+                "title": workflow["problem"]["title"] + "（改）",
+            },
+        },
+        timeout=60,
+    )
+    _assert(continued["workflow"]["status"] == "completed", "workflow completes after confirmation")
+    _assert(continued["problem"]["title"].endswith("（改）"), "workflow patch was saved")
+    _assert(continued["problem"]["constraints"], "constraints generated after confirmation")
+    _assert(continued["problem"]["reference_solution"], "reference solution generated after confirmation")
+    results.append(f"workflow flow ok: {problem_id}")
+
+    if args.include_llm:
+        llm_problem_id = _run_problem_flow(base_url, use_llm=True, topic="two pointers", rounds=50)
+        results.append(f"llm flow ok: {llm_problem_id}")
+
+    print(json.dumps({"ok": True, "results": results}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> str:
+    generated = _post_json(
+        f"{base_url}/api/problems/generate",
+        {
+            "topic": topic,
+            "difficulty": "easy",
+            "count": 1,
+            "use_llm": use_llm,
+        },
+        timeout=90,
+    )
+    problems = generated.get("list") or []
+    _assert(len(problems) == 1, "generate returned exactly one problem")
+    problem = problems[0]
+    problem_id = problem["id"]
+    if use_llm:
+        _assert(problem["source"] == "llm", f"expected llm source, got {problem['source']}")
+
+    detail = _get_json(f"{base_url}/api/problems/{problem_id}")
+    _assert(detail["id"] == problem_id, "detail endpoint returned selected problem")
+
+    review = _post_json(f"{base_url}/api/problems/{problem_id}/review", {}, timeout=30)
+    _assert(review["passed"] is True, f"review passed for {problem_id}")
+    _assert(review["score"] >= 80, f"review score >= 80 for {problem_id}")
+
+    validation = _post_json(f"{base_url}/api/problems/{problem_id}/validate", {"rounds": rounds}, timeout=60)
+    _assert(validation["sample_passed"] is True, f"samples passed for {problem_id}")
+    _assert(validation["fuzz_passed"] is True, f"fuzz passed for {problem_id}")
+    _assert(validation["failed_cases"] == [], f"no failed cases for {problem_id}")
+
+    package = _post_json(f"{base_url}/api/problems/{problem_id}/package", {"rounds": rounds}, timeout=60)
+    _assert(package["problem_id"] == problem_id, "package endpoint returned selected problem")
+    _assert(bool(package["package_dir"]), "package_dir is present")
+    _assert(package["validation"]["fuzz_passed"] is True, "package validation passed")
+    _assert(package["review"]["passed"] is True, "package review passed")
+
+    reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
+    _assert(reports["review"]["passed"] is True, "stored review report is readable")
+    _assert(reports["validation"]["fuzz_passed"] is True, "stored validation report is readable")
+    _assert(bool(reports["package"]["package_dir"]), "stored package info is readable")
+    return problem_id
+
+
+def _get_json(url: str) -> dict[str, Any]:
+    return json.loads(_get_text(url))
+
+
+def _get_text(url: str) -> str:
+    with urllib.request.urlopen(url, timeout=20) as response:
+        return response.read().decode("utf-8")
+
+
+def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _assert(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2), file=sys.stderr)
+        raise

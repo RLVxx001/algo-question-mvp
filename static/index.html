@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>算法出题工作台</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">AI</div>
+          <div>
+            <h1>算法出题工作台</h1>
+            <p id="healthText">连接中</p>
+          </div>
+        </div>
+
+        <form id="generateForm" class="panel form-panel">
+          <label class="field">
+            <span>知识点</span>
+            <input id="topicInput" name="topic" value="two pointers" autocomplete="off">
+          </label>
+
+          <div class="field">
+            <span>难度</span>
+            <div class="segmented" role="radiogroup" aria-label="难度">
+              <label><input type="radio" name="difficulty" value="easy" checked><span>Easy</span></label>
+              <label><input type="radio" name="difficulty" value="medium"><span>Medium</span></label>
+              <label><input type="radio" name="difficulty" value="hard"><span>Hard</span></label>
+            </div>
+          </div>
+
+          <div class="field">
+            <span>题面语言</span>
+            <div class="segmented two" role="radiogroup" aria-label="题面语言">
+              <label><input type="radio" name="statement_language" value="zh" checked><span>中文</span></label>
+              <label><input type="radio" name="statement_language" value="en"><span>English</span></label>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>数量</span>
+            <input id="countInput" name="count" type="number" min="1" max="5" value="1">
+          </label>
+
+          <label class="toggle">
+            <input id="useLlmInput" name="use_llm" type="checkbox" checked>
+            <span>使用模型</span>
+          </label>
+
+          <label class="toggle">
+            <input id="workflowInput" name="workflow_enabled" type="checkbox" checked>
+            <span>分步流程</span>
+          </label>
+
+          <div class="field workflow-config">
+            <span>需要人工确认的步骤</span>
+            <label class="mini-check"><input type="checkbox" name="manual_steps" value="idea"><span>创意方向</span></label>
+            <label class="mini-check"><input type="checkbox" name="manual_steps" value="statement" checked><span>题面</span></label>
+            <label class="mini-check"><input type="checkbox" name="manual_steps" value="constraints"><span>约束与样例</span></label>
+            <label class="mini-check"><input type="checkbox" name="manual_steps" value="solutions"><span>解法</span></label>
+            <label class="mini-check"><input type="checkbox" name="manual_steps" value="generator"><span>数据生成器</span></label>
+          </div>
+
+          <button class="primary-button" type="submit">
+            <span class="button-icon">+</span>
+            <span>生成题目</span>
+          </button>
+        </form>
+
+        <section class="panel list-panel">
+          <div class="panel-heading">
+            <h2>题目列表</h2>
+            <button id="refreshButton" class="icon-button" type="button" title="刷新">R</button>
+          </div>
+          <div id="problemList" class="problem-list"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Problem Package</p>
+            <h2 id="currentTitle">等待选择题目</h2>
+          </div>
+          <div class="toolbar">
+            <button id="reviewButton" class="secondary-button" type="button" disabled>
+              <span class="button-icon">?</span>
+              <span>审查</span>
+            </button>
+            <button id="validateButton" class="secondary-button" type="button" disabled>
+              <span class="button-icon">V</span>
+              <span>验证</span>
+            </button>
+            <button id="packageButton" class="secondary-button" type="button" disabled>
+              <span class="button-icon">P</span>
+              <span>导出</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="status-grid">
+          <div class="metric">
+            <span>来源</span>
+            <strong id="sourceMetric">-</strong>
+          </div>
+          <div class="metric">
+            <span>语言</span>
+            <strong id="languageMetric">-</strong>
+          </div>
+          <div class="metric">
+            <span>审查</span>
+            <strong id="reviewMetric">-</strong>
+          </div>
+          <div class="metric">
+            <span>对拍</span>
+            <strong id="validateMetric">-</strong>
+          </div>
+          <div class="metric">
+            <span>导出</span>
+            <strong id="packageMetric">-</strong>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <article class="detail-panel">
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="statement" type="button">题面</button>
+              <button class="tab" data-tab="workflow" type="button">流程</button>
+              <button class="tab" data-tab="edit" type="button">编辑</button>
+              <button class="tab" data-tab="solution" type="button">解法</button>
+              <button class="tab" data-tab="code" type="button">代码</button>
+              <button class="tab" data-tab="reports" type="button">报告</button>
+            </div>
+            <div id="detailContent" class="detail-content empty-state">
+              <h3>暂无题目</h3>
+              <p>从左侧生成或选择一道题。</p>
+            </div>
+          </article>
+
+          <aside class="activity-panel">
+            <div class="panel-heading">
+              <h2>运行记录</h2>
+              <button id="clearLogButton" class="icon-button" type="button" title="清空">C</button>
+            </div>
+            <div id="activityLog" class="activity-log"></div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
