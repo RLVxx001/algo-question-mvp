@@ -316,8 +316,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         package_dir = PACKAGE_ROOT / problem_id
-        review = REPORT_STORE.get_review(problem_id) or _read_json_file(package_dir / "review_report.json")
-        validation = REPORT_STORE.get_validation(problem_id) or _read_json_file(package_dir / "validation_report.json")
+        review = REPORT_STORE.get_review(problem_id) or _read_json_file(
+            package_dir / "review_report.json",
+            expected_problem_id=problem_id,
+        )
+        validation = REPORT_STORE.get_validation(problem_id) or _read_json_file(
+            package_dir / "validation_report.json",
+            expected_problem_id=problem_id,
+        )
         package = _package_report_status(problem_id, package_dir, review, validation)
 
         self._json(
@@ -539,14 +545,18 @@ def _runtime_info() -> dict:
     }
 
 
-def _read_json_file(path: Path) -> dict | None:
+def _read_json_file(path: Path, expected_problem_id: str | None = None) -> dict | None:
     if not path.exists():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
-    return data if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return None
+    if expected_problem_id is not None and data.get("problem_id") not in {None, expected_problem_id}:
+        return None
+    return data
 
 
 def _package_info(problem_id: str, package_dir: Path) -> dict:

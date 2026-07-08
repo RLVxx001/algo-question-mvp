@@ -610,6 +610,46 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(payload["package"]["package_blocked"])
             self.assertEqual(payload["package"]["download_url"], f"/api/problems/{problem.id}/package/download")
 
+    def test_reports_endpoint_ignores_mismatched_package_report_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            package_dir = package_root / problem.id
+            package_dir.mkdir(parents=True)
+            (package_dir / "review_report.json").write_text(
+                json.dumps({"problem_id": "prob_other", "passed": True}),
+                encoding="utf-8",
+            )
+            (package_dir / "validation_report.json").write_text(
+                json.dumps({"problem_id": "prob_other", "sample_passed": True, "fuzz_passed": True}),
+                encoding="utf-8",
+            )
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._reports(problem.id)
+
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertIsNone(payload["review"])
+            self.assertIsNone(payload["validation"])
+            self.assertFalse(payload["package"]["package_blocked"])
+
     def test_reports_endpoint_marks_blocked_package_from_failed_reports(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "print(0)\n"
