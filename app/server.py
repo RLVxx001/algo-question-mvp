@@ -598,14 +598,14 @@ def _parse_topic(value: object) -> str:
 
 
 def _parse_code_language(value: object) -> str:
-    normalized = str(value or "python").strip().lower()
+    normalized = _parse_enum_text(value, "language", default="python")
     if normalized in {"python", "py", "python3", "py3"}:
         return "python"
     raise ValueError("language must be python")
 
 
 def _parse_difficulty(value: object) -> str:
-    normalized = str(value or "easy").strip().lower()
+    normalized = _parse_enum_text(value, "difficulty", default="easy")
     if normalized in {"easy", "medium", "hard"}:
         return normalized
     raise ValueError("difficulty must be easy, medium, or hard")
@@ -617,14 +617,21 @@ def _parse_count(value: object) -> int:
 
 
 def _parse_statement_language(value: object) -> str:
-    if value is None:
-        return "zh"
-    normalized = str(value).strip().lower()
+    normalized = _parse_enum_text(value, "statement_language", default="zh")
     if normalized in {"zh", "cn", "chinese", "中文", "汉语"}:
         return "zh"
     if normalized in {"en", "english"}:
         return "en"
     raise ValueError("statement_language must be zh or en")
+
+
+def _parse_enum_text(value: object, field: str, default: str) -> str:
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    text = value.strip().lower()
+    return text or default
 
 
 def _parse_bool(value: object, field: str) -> bool:

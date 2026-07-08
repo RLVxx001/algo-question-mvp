@@ -1398,6 +1398,19 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "statement_language must be zh or en"):
             _problem_request_from_body({"topic": "array", "statement_language": "fr"})
 
+    def test_problem_request_parser_rejects_non_string_enum_fields(self) -> None:
+        from app.server import _problem_request_from_body
+
+        cases = [
+            ("language", [], "language must be a string"),
+            ("difficulty", [], "difficulty must be a string"),
+            ("statement_language", [], "statement_language must be a string"),
+        ]
+        for field, value, message in cases:
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, message):
+                    _problem_request_from_body({"topic": "array", field: value})
+
     def test_problem_request_parser_clamps_generation_count(self) -> None:
         from app.server import _problem_request_from_body
 
