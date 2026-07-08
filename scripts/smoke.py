@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import sys
 import urllib.request
+import zipfile
 from typing import Any
 
 
@@ -140,6 +142,14 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     _assert(reports["review"]["passed"] is True, "stored review report is readable")
     _assert(reports["validation"]["fuzz_passed"] is True, "stored validation report is readable")
     _assert(bool(reports["package"]["package_dir"]), "stored package info is readable")
+
+    archive_body, archive_headers = _get_bytes(f"{base_url}/api/problems/{problem_id}/package/download")
+    _assert(len(archive_body) > 0, "package zip download is nonempty")
+    _assert(archive_headers.get("Content-Type") == "application/zip", "package zip content type is correct")
+    with zipfile.ZipFile(io.BytesIO(archive_body)) as archive:
+        names = set(archive.namelist())
+    _assert("problem.md" in names, "package zip contains problem.md")
+    _assert("validation_report.json" in names, "package zip contains validation report")
     return problem_id
 
 
@@ -150,6 +160,11 @@ def _get_json(url: str) -> dict[str, Any]:
 def _get_text(url: str) -> str:
     with urllib.request.urlopen(url, timeout=20) as response:
         return response.read().decode("utf-8")
+
+
+def _get_bytes(url: str) -> tuple[bytes, Any]:
+    with urllib.request.urlopen(url, timeout=20) as response:
+        return response.read(), response.headers
 
 
 def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:

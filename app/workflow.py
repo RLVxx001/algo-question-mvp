@@ -122,7 +122,10 @@ def advance_workflow(
             package_dir = export_problem_package(problem, package_root, validation, review)
             reports["review"] = review.to_dict()
             reports["validation"] = validation.to_dict()
-            reports["package"] = {"package_dir": str(package_dir)}
+            reports["package"] = {
+                "package_dir": str(package_dir),
+                "download_url": f"/api/problems/{problem.id}/package/download",
+            }
             step.status = "completed"
             step.summary = f"已导出到 {package_dir}"
             events.append({"step": step.key, "status": "completed", "summary": step.summary})

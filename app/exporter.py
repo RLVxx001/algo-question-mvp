@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.models import GeneratedProblem, ReviewReport, ValidationReport
 
@@ -33,6 +34,22 @@ def export_problem_package(
     )
     (package_dir / "README.md").write_text(_package_readme(problem, validation, review), encoding="utf-8")
     return package_dir
+
+
+def create_problem_package_archive(problem_id: str, root: Path) -> Path:
+    package_dir = (root / problem_id).resolve()
+    archive_path = (root / f"{problem_id}.zip").resolve()
+    root_path = root.resolve()
+    if not str(package_dir).startswith(str(root_path)) or not package_dir.is_dir():
+        raise FileNotFoundError(f"package not found: {problem_id}")
+    if not str(archive_path).startswith(str(root_path)):
+        raise ValueError("archive path is outside package root")
+
+    with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+        for path in sorted(package_dir.rglob("*")):
+            if path.is_file():
+                archive.write(path, path.relative_to(package_dir))
+    return archive_path
 
 
 def _problem_markdown(problem: GeneratedProblem) -> str:

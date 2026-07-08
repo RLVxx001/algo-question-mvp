@@ -389,7 +389,7 @@ function renderReports(problem) {
     <h3>报告</h3>
     ${renderReviewSummary(reports.review)}
     ${renderValidationSummary(problem, reports.validation)}
-    ${renderPackageSummary(reports.package)}
+    ${renderPackageSummary(problem, reports.package)}
   `;
   bindReportActions(problem);
 }
@@ -518,7 +518,7 @@ function renderFailedCase(problem, failed, index) {
   `;
 }
 
-function renderPackageSummary(report) {
+function renderPackageSummary(problem, report) {
   if (!report) {
     return `
       <section class="report-card">
@@ -527,10 +527,17 @@ function renderPackageSummary(report) {
       </section>
     `;
   }
+  const downloadUrl = report.download_url || `/api/problems/${encodeURIComponent(problem.id)}/package/download`;
   return `
     <section class="report-card">
       <div class="report-heading"><h4>导出</h4><span class="status-pill completed">已导出</span></div>
       <div class="empty-report">${escapeHtml(report.package_dir || "已生成题目包")}</div>
+      <div class="package-actions">
+        <a class="secondary-button download-link" href="${escapeHtml(downloadUrl)}" download>
+          <span class="button-icon">D</span>
+          <span>下载 ZIP</span>
+        </a>
+      </div>
       <details><summary>原始导出 JSON</summary>${renderReportBlock(report, "")}</details>
     </section>
   `;
@@ -771,7 +778,7 @@ async function runPackage() {
       ...(state.reports[id] || {}),
       review: data.review,
       validation: data.validation,
-      package: { package_dir: data.package_dir },
+      package: { package_dir: data.package_dir, download_url: data.download_url },
     };
     renderAll();
     log("导出完成", data.package_dir, "ok");

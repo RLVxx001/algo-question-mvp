@@ -10,12 +10,13 @@
 - 静态质量审查。
 - 样例验证和随机对拍。
 - 导出可交付题目包目录。
+- 下载可交付题目包 ZIP。
 - 本地自动化测试。
 
 ## 启动
 
 ```bash
-cd /Users/a123/Desktop/tool/wurenji/algo-question-mvp
+cd /Users/a123/Desktop/学校相关项目/algo-question-mvp
 export ALGO_LLM_BASE_URL='http://8.138.45.45:8318'
 export ALGO_LLM_API_KEY='your-api-key'
 export ALGO_LLM_MODEL='gpt-5.5'
@@ -27,7 +28,7 @@ python3 -m app.server
 ## 本地验收
 
 ```bash
-cd /Users/a123/Desktop/tool/wurenji/algo-question-mvp
+cd /Users/a123/Desktop/学校相关项目/algo-question-mvp
 make compile
 make test
 ```
@@ -50,7 +51,8 @@ python3 -m scripts.smoke --base-url http://127.0.0.1:18081 --include-llm
 2. 调 `/api/problems/{id}/review` 看静态质量。
 3. 调 `/api/problems/{id}/validate` 做对拍。
 4. 调 `/api/problems/{id}/package` 导出题目包。
-5. 打开导出目录里的 `problem.md`、`validation_report.json`、`review_report.json` 做最终确认。
+5. 调 `/api/problems/{id}/package/download` 下载 ZIP，或在前端报告页点击“下载 ZIP”。
+6. 打开导出目录或 ZIP 里的 `problem.md`、`validation_report.json`、`review_report.json` 做最终确认。
 
 ## 发布前必须补的能力
 

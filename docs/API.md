@@ -71,7 +71,7 @@ GET /api/problems/{problem_id}
 GET /api/problems/{problem_id}/reports
 ```
 
-如果该题目已经导出过，会返回磁盘中的审查报告、验证报告和题目包目录；没有运行过的部分返回 `null`。
+如果该题目已经导出过，会返回磁盘中的审查报告、验证报告、题目包目录和 ZIP 下载地址；没有运行过的部分返回 `null`。
 
 ## 审查题目
 
@@ -174,6 +174,18 @@ Content-Type: application/json
 data/packages/{problem_id}/
 ```
 
+响应会包含：
+
+```json
+{
+  "problem_id": "prob_x",
+  "package_dir": "data/packages/prob_x",
+  "download_url": "/api/problems/prob_x/package/download",
+  "validation": {},
+  "review": {}
+}
+```
+
 导出文件：
 
 - `problem.md`
@@ -184,6 +196,17 @@ data/packages/{problem_id}/
 - `validation_report.json`
 - `review_report.json`
 - `README.md`
+
+## 下载题目 ZIP
+
+```http
+GET /api/problems/{problem_id}/package/download
+```
+
+下载前需要先调用 `/api/problems/{problem_id}/package` 或完成分步流程的导出步骤。接口会基于 `data/packages/{problem_id}/` 生成 `data/packages/{problem_id}.zip` 并返回：
+
+- `Content-Type: application/zip`
+- `Content-Disposition: attachment; filename="{problem_id}.zip"`
 
 ## 启动分步流程
 

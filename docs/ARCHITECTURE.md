@@ -36,6 +36,7 @@ HTTP API
        -> reference vs brute-force differential test
   -> exporter
        -> publishable package directory
+       -> downloadable zip archive
 ```
 
 ## 文件
@@ -44,7 +45,7 @@ HTTP API
 - `app/generator.py`: LLM 调用和本地模板降级
 - `app/reviewer.py`: 静态质量审查
 - `app/validator.py`: 对拍验证
-- `app/exporter.py`: 题目包导出
+- `app/exporter.py`: 题目包目录导出和 ZIP 归档
 - `app/store.py`: 题目 JSON 存储
 - `static/index.html`: 前端工作台入口
 - `static/styles.css`: 前端样式

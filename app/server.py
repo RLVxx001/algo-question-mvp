@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from app.exporter import export_problem_package
+from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.reviewer import review_problem
@@ -48,6 +48,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/workflow"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/workflow")
             self._workflow(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/package/download"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/package/download")
+            self._download_package(problem_id)
             return
         if parsed.path.startswith("/api/problems/"):
             problem_id = parsed.path.removeprefix("/api/problems/")
@@ -231,7 +235,7 @@ class Handler(BaseHTTPRequestHandler):
         validation = _read_json_file(package_dir / "validation_report.json")
         package = None
         if package_dir.exists():
-            package = {"package_dir": str(package_dir)}
+            package = _package_info(problem_id, package_dir)
 
         self._json(
             HTTPStatus.OK,
@@ -266,6 +270,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "problem_id": problem.id,
                     "package_dir": str(package_dir),
+                    "download_url": _package_download_url(problem.id),
                     "validation": validation.to_dict(),
                     "review": review.to_dict(),
                 },
@@ -274,6 +279,24 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except ValidationError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _download_package(self, problem_id: str) -> None:
+        try:
+            STORE.get(problem_id)
+            archive_path = create_problem_package_archive(problem_id, PACKAGE_ROOT)
+            body = archive_path.read_bytes()
+            self.send_response(HTTPStatus.OK.value)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{archive_path.name}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except FileNotFoundError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "package not found"})
         except Exception as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
@@ -324,6 +347,17 @@ def _read_json_file(path: Path) -> dict | None:
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _package_info(problem_id: str, package_dir: Path) -> dict:
+    return {
+        "package_dir": str(package_dir),
+        "download_url": _package_download_url(problem_id),
+    }
+
+
+def _package_download_url(problem_id: str) -> str:
+    return f"/api/problems/{problem_id}/package/download"
 
 
 def _problem_request_from_body(body: dict) -> ProblemRequest:

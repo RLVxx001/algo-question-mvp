@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from app.exporter import export_problem_package
+from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import generate_problem
 from app.models import GeneratedProblem, ProblemRequest
 from app.reviewer import review_problem
@@ -39,6 +41,63 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue((package_dir / "generator.py").exists())
             self.assertTrue((package_dir / "validation_report.json").exists())
             self.assertTrue((package_dir / "review_report.json").exists())
+
+    def test_export_archive_contains_publishable_package_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export_problem_package(problem, root, validation, review)
+
+            archive_path = create_problem_package_archive(problem.id, root)
+
+            self.assertEqual(archive_path.name, f"{problem.id}.zip")
+            with zipfile.ZipFile(archive_path) as archive:
+                names = set(archive.namelist())
+            self.assertIn("problem.md", names)
+            self.assertIn("problem.json", names)
+            self.assertIn("reference_solution.py", names)
+            self.assertIn("brute_force_solution.py", names)
+            self.assertIn("generator.py", names)
+            self.assertIn("validation_report.json", names)
+            self.assertIn("review_report.json", names)
+            self.assertIn("README.md", names)
+
+    def test_server_package_download_returns_zip_response(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export_problem_package(problem, root, validation, review)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            store = Mock()
+            store.get.return_value = problem
+            with patch("app.server.PACKAGE_ROOT", root), patch("app.server.STORE", store):
+                handler._download_package(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            sent_headers = handler.send_header.call_args_list
+            self.assertIn(("Content-Type", "application/zip"), [call.args for call in sent_headers])
+            self.assertIn(
+                ("Content-Disposition", f'attachment; filename="{problem.id}.zip"'),
+                [call.args for call in sent_headers],
+            )
+            body = handler.wfile.write.call_args.args[0]
+            self.assertGreater(len(body), 0)
+            with zipfile.ZipFile(Path(tmp) / f"{problem.id}.zip") as archive:
+                self.assertIn("problem.md", archive.namelist())
 
     def test_statement_language_defaults_to_chinese_and_can_use_english(self) -> None:
         zh_problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

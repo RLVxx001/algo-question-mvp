@@ -245,6 +245,7 @@ select {
   border-color: var(--line);
   color: var(--text);
   font-weight: 800;
+  text-decoration: none;
 }
 
 .secondary-button:disabled {
@@ -720,6 +721,16 @@ pre {
 .mini-toolbar .secondary-button {
   min-height: 34px;
   padding: 6px 10px;
+}
+
+.package-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.download-link {
+  width: fit-content;
 }
 
 .rerun-result {
