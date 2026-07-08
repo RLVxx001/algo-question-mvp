@@ -70,6 +70,36 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertIn("review_report.json", names)
             self.assertIn("README.md", names)
 
+    def test_export_archive_rejects_sibling_directory_with_same_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+            sibling_package = root / "packages_evil" / "prob_x"
+            sibling_package.mkdir(parents=True)
+            (sibling_package / "problem.md").write_text("secret", encoding="utf-8")
+
+            with self.assertRaises(FileNotFoundError):
+                create_problem_package_archive("../packages_evil/prob_x", package_root)
+
+            self.assertFalse((root / "packages_evil" / "prob_x.zip").exists())
+
+    def test_export_package_rejects_sibling_directory_with_same_prefix(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.id = "../packages_evil/prob_x"
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+
+            with self.assertRaises(ValueError):
+                export_problem_package(problem, package_root, validation, review)
+
+            self.assertFalse((root / "packages_evil" / "prob_x").exists())
+
     def test_server_package_download_returns_zip_response(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
@@ -276,6 +306,25 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(report_store.dir_for(problem.id).exists())
             self.assertFalse(package_dir.exists())
             self.assertFalse(archive_path.exists())
+
+    def test_server_remove_package_artifacts_rejects_sibling_directory_with_same_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+            sibling_dir = root / "packages_evil" / "prob_x"
+            sibling_dir.mkdir(parents=True)
+            sibling_archive = root / "packages_evil" / "prob_x.zip"
+            sibling_archive.write_text("zip", encoding="utf-8")
+
+            from app.server import _remove_package_artifacts
+
+            with patch("app.server.PACKAGE_ROOT", package_root):
+                removed = _remove_package_artifacts("../packages_evil/prob_x")
+
+            self.assertFalse(removed)
+            self.assertTrue(sibling_dir.exists())
+            self.assertTrue(sibling_archive.exists())
 
     def test_report_store_persists_review_and_validation_without_package(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

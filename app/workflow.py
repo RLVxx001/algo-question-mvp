@@ -7,6 +7,7 @@ from pathlib import Path
 from app.exporter import export_problem_package
 from app.generator import generate_workflow_stage
 from app.models import GeneratedProblem, ProblemRequest, ProblemWorkflow, WorkflowStep
+from app.paths import resolve_under
 from app.reviewer import review_problem
 from app.validator import ValidationError, validate_problem
 
@@ -277,10 +278,10 @@ def _now() -> str:
 
 
 def _remove_package_artifacts(package_root, problem_id: str) -> None:
-    root = Path(package_root).resolve()
-    package_dir = (root / problem_id).resolve()
-    archive_path = (root / f"{problem_id}.zip").resolve()
-    if str(package_dir).startswith(str(root)) and package_dir.is_dir():
+    root = Path(package_root)
+    package_dir = resolve_under(root, problem_id)
+    archive_path = resolve_under(root, f"{problem_id}.zip")
+    if package_dir is not None and package_dir.is_dir():
         shutil.rmtree(package_dir)
-    if str(archive_path).startswith(str(root)) and archive_path.exists():
+    if archive_path is not None and archive_path.exists():
         archive_path.unlink()

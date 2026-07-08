@@ -5,6 +5,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.models import GeneratedProblem, ReviewReport, ValidationReport
+from app.paths import resolve_under
 
 
 def export_problem_package(
@@ -13,7 +14,9 @@ def export_problem_package(
     validation: ValidationReport,
     review: ReviewReport,
 ) -> Path:
-    package_dir = root / problem.id
+    package_dir = resolve_under(root, problem.id)
+    if package_dir is None:
+        raise ValueError("package path is outside package root")
     package_dir.mkdir(parents=True, exist_ok=True)
 
     (package_dir / "problem.json").write_text(
@@ -37,12 +40,11 @@ def export_problem_package(
 
 
 def create_problem_package_archive(problem_id: str, root: Path) -> Path:
-    package_dir = (root / problem_id).resolve()
-    archive_path = (root / f"{problem_id}.zip").resolve()
-    root_path = root.resolve()
-    if not str(package_dir).startswith(str(root_path)) or not package_dir.is_dir():
+    package_dir = resolve_under(root, problem_id)
+    archive_path = resolve_under(root, f"{problem_id}.zip")
+    if package_dir is None or not package_dir.is_dir():
         raise FileNotFoundError(f"package not found: {problem_id}")
-    if not str(archive_path).startswith(str(root_path)):
+    if archive_path is None:
         raise ValueError("archive path is outside package root")
 
     with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:

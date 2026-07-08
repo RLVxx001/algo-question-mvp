@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, create_problem_draft, generate_problem
 from app.models import ProblemRequest
+from app.paths import resolve_under
 from app.reviewer import review_problem
 from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
@@ -446,13 +447,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _safe_static_path(name: str) -> Path | None:
-    root = STATIC_ROOT.resolve()
-    path = (root / name).resolve()
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return None
-    return path
+    return resolve_under(STATIC_ROOT, name)
 
 
 def _summary(problem) -> dict:
@@ -558,14 +553,13 @@ def _invalidate_problem_outputs(problem_id: str) -> dict:
 
 
 def _remove_package_artifacts(problem_id: str) -> bool:
-    package_dir = (PACKAGE_ROOT / problem_id).resolve()
-    archive_path = (PACKAGE_ROOT / f"{problem_id}.zip").resolve()
-    root_path = PACKAGE_ROOT.resolve()
+    package_dir = resolve_under(PACKAGE_ROOT, problem_id)
+    archive_path = resolve_under(PACKAGE_ROOT, f"{problem_id}.zip")
     removed = False
-    if str(package_dir).startswith(str(root_path)) and package_dir.is_dir():
+    if package_dir is not None and package_dir.is_dir():
         shutil.rmtree(package_dir)
         removed = True
-    if str(archive_path).startswith(str(root_path)) and archive_path.exists():
+    if archive_path is not None and archive_path.exists():
         archive_path.unlink()
         removed = True
     return removed
