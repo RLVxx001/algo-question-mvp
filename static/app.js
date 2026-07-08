@@ -8,6 +8,7 @@ const state = {
   runtime: null,
   similarity: {},
   busy: {},
+  selectionRequestId: 0,
 };
 
 const els = {
@@ -215,21 +216,29 @@ function forgetProblem(id) {
 }
 
 async function selectProblem(id) {
+  const requestId = ++state.selectionRequestId;
+  const isCurrent = () => requestId === state.selectionRequestId;
   try {
     const problem = await api(`/api/problems/${id}`);
+    if (!isCurrent()) return;
     state.selected = problem;
     state.activeTab = "statement";
     state.reports[id] = state.reports[id] || {};
     if (!(await loadStoredReports(id))) {
+      if (!isCurrent()) return;
       forgetProblem(id);
       log("题目不存在", "列表中的题目已不存在或无法读取，已从当前列表移除。", "warn");
       return;
     }
+    if (!isCurrent()) return;
     await loadSimilarity(id);
+    if (!isCurrent()) return;
     await loadWorkflow(id);
+    if (!isCurrent()) return;
     renderAll();
     log("已选择题目", `${problem.title} (${problem.source})`, "ok");
   } catch (err) {
+    if (!isCurrent()) return;
     if (err.status === 404) {
       forgetProblem(id);
       log("题目不存在", "列表中的题目已不存在或无法读取，已从当前列表移除。", "warn");
