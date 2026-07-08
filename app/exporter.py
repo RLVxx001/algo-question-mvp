@@ -14,32 +14,41 @@ def export_problem_package(
     validation: ValidationReport,
     review: ReviewReport,
 ) -> Path:
+    raw_package_dir = _direct_package_child(root, problem.id)
+    if raw_package_dir is not None and raw_package_dir.is_symlink():
+        raw_package_dir.unlink()
     package_dir = resolve_under(root, problem.id)
     if package_dir is None:
         raise ValueError("package path is outside package root")
     package_dir.mkdir(parents=True, exist_ok=True)
 
-    (package_dir / "problem.json").write_text(
+    _write_package_file(
+        package_dir / "problem.json",
         json.dumps(problem.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (package_dir / "problem.md").write_text(_problem_markdown(problem), encoding="utf-8")
-    (package_dir / "reference_solution.py").write_text(problem.reference_solution, encoding="utf-8")
-    (package_dir / "brute_force_solution.py").write_text(problem.brute_force_solution, encoding="utf-8")
-    (package_dir / "generator.py").write_text(problem.generator_code, encoding="utf-8")
-    (package_dir / "validation_report.json").write_text(
+    _write_package_file(package_dir / "problem.md", _problem_markdown(problem), encoding="utf-8")
+    _write_package_file(package_dir / "reference_solution.py", problem.reference_solution, encoding="utf-8")
+    _write_package_file(package_dir / "brute_force_solution.py", problem.brute_force_solution, encoding="utf-8")
+    _write_package_file(package_dir / "generator.py", problem.generator_code, encoding="utf-8")
+    _write_package_file(
+        package_dir / "validation_report.json",
         json.dumps(validation.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (package_dir / "review_report.json").write_text(
+    _write_package_file(
+        package_dir / "review_report.json",
         json.dumps(review.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (package_dir / "README.md").write_text(_package_readme(problem, validation, review), encoding="utf-8")
+    _write_package_file(package_dir / "README.md", _package_readme(problem, validation, review), encoding="utf-8")
     return package_dir
 
 
 def create_problem_package_archive(problem_id: str, root: Path) -> Path:
+    raw_package_dir = _direct_package_child(root, problem_id)
+    if raw_package_dir is not None and raw_package_dir.is_symlink():
+        raise FileNotFoundError(f"package not found: {problem_id}")
     package_dir = resolve_under(root, problem_id)
     archive_path = resolve_under(root, f"{problem_id}.zip")
     if package_dir is None or not package_dir.is_dir():
@@ -49,9 +58,21 @@ def create_problem_package_archive(problem_id: str, root: Path) -> Path:
 
     with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
         for path in sorted(package_dir.rglob("*")):
-            if path.is_file():
+            if path.is_file() and not path.is_symlink():
                 archive.write(path, path.relative_to(package_dir))
     return archive_path
+
+
+def _write_package_file(path: Path, text: str, encoding: str) -> None:
+    if path.is_symlink():
+        path.unlink()
+    path.write_text(text, encoding=encoding)
+
+
+def _direct_package_child(root: Path, name: str) -> Path | None:
+    if not name or "/" in name or "\\" in name or name in {".", ".."}:
+        return None
+    return root / name
 
 
 def _problem_markdown(problem: GeneratedProblem) -> str:

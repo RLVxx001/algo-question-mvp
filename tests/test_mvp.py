@@ -100,6 +100,77 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
 
             self.assertFalse((root / "packages_evil" / "prob_x").exists())
 
+    def test_export_package_replaces_symlinked_package_file_without_writing_target(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outside = root / "outside_solution.py"
+            outside.write_text("external", encoding="utf-8")
+            package_dir = root / problem.id
+            package_dir.mkdir()
+            package_file = package_dir / "reference_solution.py"
+            package_file.symlink_to(outside)
+
+            export_problem_package(problem, root, validation, review)
+
+            self.assertFalse(package_file.is_symlink())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "external")
+            self.assertEqual(package_file.read_text(encoding="utf-8"), problem.reference_solution)
+
+    def test_export_package_replaces_symlinked_package_directory_without_writing_target(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outside_package = root / "other_package"
+            outside_package.mkdir()
+            package_dir = root / problem.id
+            package_dir.symlink_to(outside_package, target_is_directory=True)
+
+            exported_dir = export_problem_package(problem, root, validation, review)
+
+            self.assertEqual(exported_dir, package_dir.resolve())
+            self.assertFalse(package_dir.is_symlink())
+            self.assertTrue((package_dir / "problem.json").exists())
+            self.assertFalse((outside_package / "problem.json").exists())
+
+    def test_export_archive_skips_symlinked_files_inside_package(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_dir = export_problem_package(problem, root, validation, review)
+            outside = root / "outside_secret.txt"
+            outside.write_text("secret", encoding="utf-8")
+            (package_dir / "leaked.txt").symlink_to(outside)
+
+            archive_path = create_problem_package_archive(problem.id, root)
+
+            with zipfile.ZipFile(archive_path) as archive:
+                self.assertNotIn("leaked.txt", archive.namelist())
+
+    def test_export_archive_rejects_symlinked_package_directory(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outside_package = root / "other_package"
+            outside_package.mkdir()
+            (outside_package / "problem.md").write_text("external", encoding="utf-8")
+            (root / problem.id).symlink_to(outside_package, target_is_directory=True)
+
+            with self.assertRaises(FileNotFoundError):
+                create_problem_package_archive(problem.id, root)
+
+            self.assertFalse((root / f"{problem.id}.zip").exists())
+
     def test_server_package_download_returns_zip_response(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
