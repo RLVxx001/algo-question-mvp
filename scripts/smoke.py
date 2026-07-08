@@ -432,6 +432,20 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     _assert("problem.md" in names, "package zip contains problem.md")
     _assert("validation_report.json" in names, "package zip contains validation report")
 
+    noop_edit = _post_json(
+        f"{base_url}/api/problems/{problem_id}/edit",
+        {"patch": {"title": problem["title"]}},
+        timeout=30,
+    )
+    _assert(noop_edit["changed"] is False, "noop edit reports unchanged")
+    _assert(noop_edit["reports_invalidated"] is False, "noop edit keeps stored reports")
+    _assert(noop_edit["package_invalidated"] is False, "noop edit keeps package artifacts")
+    noop_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
+    _assert(noop_reports["review"]["passed"] is True, "noop edit keeps review report readable")
+    _assert(noop_reports["validation"]["fuzz_passed"] is True, "noop edit keeps validation report readable")
+    noop_archive_body, _ = _get_bytes(f"{base_url}/api/problems/{problem_id}/package/download")
+    _assert(len(noop_archive_body) > 0, "noop edit keeps package zip downloadable")
+
     edited_samples = [
         {"input": "1 2\n1\n", "output": "0\n"},
         {"input": "2 3\n1 2\n", "output": "1\n"},
@@ -450,6 +464,7 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     )
     _assert(edited["samples"] == edited_samples, "edit endpoint saved sample changes")
     _assert(edited["reference_solution"] == edited_reference, "edit endpoint saved reference solution changes")
+    _assert(edited["changed"] is True, "changed edit reports changed")
     _assert(edited["reports_invalidated"] is True, "edit invalidated stored reports")
     _assert(edited["package_invalidated"] is True, "edit invalidated package artifacts")
     invalidated_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")

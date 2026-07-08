@@ -961,6 +961,11 @@ function problemPatchFromEditForm(form) {
   };
 }
 
+function problemPatchChanged(problem, patch) {
+  if (!problem || !patch) return false;
+  return Object.entries(patch).some(([key, value]) => JSON.stringify(problem[key]) !== JSON.stringify(value));
+}
+
 function validationOptions(controls = els) {
   return {
     rounds: parseClampedInteger(controls.roundsInput?.value, "rounds", 100, 1, 1000),
@@ -979,17 +984,25 @@ async function saveEdit(event) {
   const id = currentProblemId();
   if (!id) return;
   const patch = problemPatchFromEditForm(new FormData(event.target));
+  if (!problemPatchChanged(state.selected, patch)) {
+    log("编辑未保存", "当前表单没有变化，报告和导出包保持有效。", "info");
+    return;
+  }
   try {
     const problem = await api(`/api/problems/${id}/edit`, {
       method: "POST",
       body: JSON.stringify({ patch }),
     });
     state.selected = problem;
-    state.reports[id] = {};
+    if (problem.changed !== false) {
+      state.reports[id] = {};
+      clearRerunsForProblem(id);
+    }
     await loadSimilarity(id);
-    clearRerunsForProblem(id);
     renderAll();
-    log("编辑已保存", "旧报告和导出包已失效，请重新审查/验证。", "ok");
+    const message =
+      problem.changed === false ? "当前表单没有变化，报告和导出包保持有效。" : "旧报告和导出包已失效，请重新审查/验证。";
+    log("编辑已保存", message, "ok");
   } catch (err) {
     log("编辑失败", err.message, "bad");
   }
@@ -1003,7 +1016,10 @@ async function continueWorkflow(includePatch) {
   const payload = { confirm_current: true };
   const editForm = document.getElementById("editForm");
   if (includePatch && editForm) {
-    payload.patch = problemPatchFromEditForm(new FormData(editForm));
+    const patch = problemPatchFromEditForm(new FormData(editForm));
+    if (problemPatchChanged(state.selected, patch)) {
+      payload.patch = patch;
+    }
   }
   try {
     const data = await api(`/api/problems/${id}/workflow/continue`, {

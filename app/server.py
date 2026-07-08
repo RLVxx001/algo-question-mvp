@@ -216,10 +216,16 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(patch, dict):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "patch must be an object"})
                 return
+            original = problem.to_dict()
             problem = apply_problem_patch(problem, patch)
-            STORE.save(problem)
-            invalidated = _invalidate_problem_outputs(problem_id)
+            changed = problem.to_dict() != original
+            if changed:
+                STORE.save(problem)
+                invalidated = _invalidate_problem_outputs(problem_id)
+            else:
+                invalidated = {"reports_invalidated": False, "package_invalidated": False}
             payload = problem.to_dict()
+            payload["changed"] = changed
             payload.update(invalidated)
             self._json(HTTPStatus.OK, payload)
         except KeyError:

@@ -117,10 +117,11 @@ Content-Type: application/json
 
 `constraints` 和 `tags` 必须是字符串数组，`samples` 必须是对象数组，且每个样例都包含 `input` 和 `output`。补丁格式不合法时返回 `400`，不会覆盖原题内容。
 
-编辑成功后会删除该题目已有的审查报告、验证报告、导出目录和 ZIP，因为它们已经不再对应当前题目内容。响应是在题目详情基础上增加：
+编辑成功且题目内容发生变化后，会删除该题目已有的审查报告、验证报告、导出目录和 ZIP，因为它们已经不再对应当前题目内容。如果补丁归一化后与原题完全一致，接口会返回 `changed: false`，并保留已有报告和导出包。响应是在题目详情基础上增加：
 
 ```json
 {
+  "changed": true,
   "reports_invalidated": true,
   "package_invalidated": true
 }

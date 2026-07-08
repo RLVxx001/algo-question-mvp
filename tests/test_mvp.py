@@ -615,6 +615,47 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(body["reports_invalidated"])
             self.assertTrue(body["package_invalidated"])
 
+    def test_server_edit_noop_keeps_reports_and_package_artifacts(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            problem_store.save(problem)
+            report_store.save_review(problem.id, review.to_dict())
+            report_store.save_validation(problem.id, validation.to_dict())
+            package_dir = export_problem_package(problem, package_root, validation, review)
+            archive_path = create_problem_package_archive(problem.id, package_root)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"patch": {"title": problem.title}}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._edit_problem(problem.id)
+
+            self.assertIsNotNone(report_store.get_review(problem.id))
+            self.assertIsNotNone(report_store.get_validation(problem.id))
+            self.assertTrue(package_dir.exists())
+            self.assertTrue(archive_path.exists())
+            body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertFalse(body["changed"])
+            self.assertFalse(body["reports_invalidated"])
+            self.assertFalse(body["package_invalidated"])
+
     def test_problem_patch_normalizes_samples_and_solution_code(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

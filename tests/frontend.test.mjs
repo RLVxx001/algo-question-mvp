@@ -196,3 +196,40 @@ test("rerunOptions normalizes rerun timeout control", () => {
     /timeout_seconds must be a number/,
   );
 });
+
+test("problemPatchChanged detects no-op and changed edit payloads", () => {
+  const context = loadAppContext();
+  const problem = {
+    title: "Original",
+    statement: "Statement",
+    input_format: "Input",
+    output_format: "Output",
+    constraints: ["1 <= n <= 10"],
+    samples: [{ input: "1\n", output: "1\n" }],
+    tags: ["array"],
+    solution_explanation: "Use counting.",
+    reference_solution: "print(input())\n",
+    brute_force_solution: "print(input())\n",
+    generator_code: "print('1')\n",
+  };
+
+  assert.equal(
+    context.problemPatchChanged(problem, {
+      title: "Original",
+      constraints: ["1 <= n <= 10"],
+      samples: [{ input: "1\n", output: "1\n" }],
+      tags: ["array"],
+    }),
+    false,
+  );
+
+  assert.equal(
+    context.problemPatchChanged(problem, {
+      title: "Changed",
+      constraints: ["1 <= n <= 10"],
+      samples: [{ input: "1\n", output: "1\n" }],
+      tags: ["array"],
+    }),
+    true,
+  );
+});
