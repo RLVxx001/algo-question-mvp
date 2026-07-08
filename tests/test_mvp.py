@@ -1390,6 +1390,17 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertLessEqual(len(reason), 4300)
         self.assertIn("... truncated ...", reason)
 
+    def test_validation_report_truncates_long_mismatch_outputs(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "print('x' * 6000)\n"
+
+        report = validate_problem(problem, rounds=0, timeout_seconds=1.0)
+
+        failed = report.failed_cases[0]
+        self.assertEqual(failed.reason, "sample output mismatch")
+        self.assertLessEqual(len(failed.actual), 4300)
+        self.assertIn("... truncated ...", failed.actual)
+
     def test_rerun_case_reports_compare_failure(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "print(0)\n"

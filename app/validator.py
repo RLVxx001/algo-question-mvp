@@ -52,9 +52,9 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 failed.append(
                     ValidationCaseResult(
                         index=idx,
-                        input=sample["input"],
-                        expected=expected,
-                        actual=actual.strip(),
+                        input=_truncate_case_input(sample["input"]),
+                        expected=_truncate_case_output(expected),
+                        actual=_truncate_case_output(actual.strip()),
                         passed=False,
                         reason="sample output mismatch",
                     )
@@ -123,9 +123,9 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
-                        input=case_input,
-                        expected=expected.strip(),
-                        actual=actual.strip(),
+                        input=_truncate_case_input(case_input),
+                        expected=_truncate_case_output(expected.strip()),
+                        actual=_truncate_case_output(actual.strip()),
                         passed=False,
                         reason="reference and brute force mismatch",
                     )
@@ -220,3 +220,7 @@ def _truncate_text(value: str, limit: int = 4000) -> str:
 
 def _truncate_case_input(case_input: str, limit: int = 4000) -> str:
     return _truncate_text(case_input, limit)
+
+
+def _truncate_case_output(case_output: str, limit: int = 4000) -> str:
+    return _truncate_text(case_output, limit)
