@@ -58,6 +58,15 @@ def main() -> int:
     _assert_deleted(base_url, zh_problem["id"])
     results.append(f"default chinese ok: {zh_problem['id']}")
 
+    string_false_problem = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": "false"},
+        timeout=30,
+    )["list"][0]
+    _assert(string_false_problem["source"] == "mock", "string false use_llm disables llm")
+    _assert_deleted(base_url, string_false_problem["id"])
+    results.append(f"string boolean ok: {string_false_problem['id']}")
+
     workflow = _post_json(
         f"{base_url}/api/workflows/start",
         {

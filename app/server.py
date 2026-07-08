@@ -552,8 +552,20 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
         language=str(body.get("language", "python")),
         statement_language=str(body.get("statement_language", body.get("natural_language", "zh"))),
         count=int(body.get("count", DEFAULT_GENERATION_COUNT)),
-        use_llm=bool(body.get("use_llm", True)),
+        use_llm=_parse_bool(body.get("use_llm", True), "use_llm"),
     )
+
+
+def _parse_bool(value: object, field: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    raise ValueError(f"{field} must be a boolean")
 
 
 def _clamp_rounds(value: object) -> int:

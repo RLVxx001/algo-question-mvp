@@ -669,6 +669,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(_clamp_timeout(99), 10.0)
         self.assertEqual(_clamp_timeout("1.5"), 1.5)
 
+    def test_problem_request_parser_handles_string_boolean_flags(self) -> None:
+        from app.server import _problem_request_from_body
+
+        disabled = _problem_request_from_body({"topic": "array", "use_llm": "false"})
+        enabled = _problem_request_from_body({"topic": "array", "use_llm": "true"})
+
+        self.assertFalse(disabled.use_llm)
+        self.assertTrue(enabled.use_llm)
+
+    def test_problem_request_parser_rejects_invalid_boolean_flags(self) -> None:
+        from app.server import _problem_request_from_body
+
+        with self.assertRaisesRegex(ValueError, "use_llm must be a boolean"):
+            _problem_request_from_body({"topic": "array", "use_llm": "maybe"})
+
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

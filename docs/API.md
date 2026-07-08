@@ -75,7 +75,7 @@ Content-Type: application/json
 - `difficulty`: 当前只是传给模型和记录，尚未做强约束。
 - `statement_language`: 题面语言，`zh` 或 `en`，默认 `zh`。
 - `count`: 1 到 5。
-- `use_llm`: true 时优先调用 LLM；未配置 key 或失败时降级模板。
+- `use_llm`: true 时优先调用 LLM；未配置 key 或失败时降级模板。也兼容 `"true"` / `"false"` 这类字符串布尔值，其他字符串会返回 `400`。
 
 ## 查看题目列表
 
