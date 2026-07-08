@@ -342,6 +342,32 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
         raise AssertionError("invalid validation rounds unexpectedly succeeded")
 
     try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/validate",
+            {"rounds": False, "timeout_seconds": 1.5},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "boolean validation rounds returns 400")
+        _assert(body["error"] == "rounds must be an integer", "boolean validation rounds has clear error")
+    else:
+        raise AssertionError("boolean validation rounds unexpectedly succeeded")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/validate",
+            {"rounds": rounds, "timeout_seconds": True},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "boolean validation timeout returns 400")
+        _assert(body["error"] == "timeout_seconds must be a number", "boolean validation timeout has clear error")
+    else:
+        raise AssertionError("boolean validation timeout unexpectedly succeeded")
+
+    try:
         _post_raw_json(f"{base_url}/api/problems/{problem_id}/validate", b"[]", timeout=30)
     except urllib.error.HTTPError as exc:
         body = _http_error_json(exc)

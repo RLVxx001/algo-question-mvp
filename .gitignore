@@ -6,3 +6,4 @@ __pycache__/
 data/problems/*.json
 data/workflows/*.json
 data/packages/
+data/reports/

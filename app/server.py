@@ -612,6 +612,8 @@ def _parse_bool(value: object, field: str) -> bool:
 
 
 def _clamp_rounds(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError("rounds must be an integer")
     try:
         rounds = int(value)
     except (TypeError, ValueError) as exc:
@@ -620,6 +622,8 @@ def _clamp_rounds(value: object) -> int:
 
 
 def _clamp_timeout(value: object) -> float:
+    if isinstance(value, bool):
+        raise ValueError("timeout_seconds must be a number")
     try:
         timeout_seconds = float(value)
     except (TypeError, ValueError) as exc:

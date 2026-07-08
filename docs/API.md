@@ -232,7 +232,7 @@ Content-Type: application/json
 - 暴力解和标准解对拍。
 - `rounds` 范围限制为 1 到 1000。
 - `timeout_seconds` 为每次运行标准解、暴力解或生成器的超时时间，范围限制为 0.2 到 10。
-- `rounds` 或 `timeout_seconds` 不是数字时返回 `400`，不会写入报告。
+- `rounds` 或 `timeout_seconds` 不是数字、或传入布尔值时返回 `400`，不会写入报告。
 
 响应会包含运行元数据：
 
@@ -277,7 +277,7 @@ Content-Type: application/json
 
 `expected` 来自暴力解，`actual` 来自标准解。该接口用于复现验证报告里的失败输入。
 
-`timeout_seconds` 不是数字时返回 `400`。
+`timeout_seconds` 不是数字、或传入布尔值时返回 `400`。
 
 ## 导出题目包
 
@@ -297,7 +297,7 @@ Content-Type: application/json
 
 接口会重新运行审查和验证。只有 `review.passed`、`validation.sample_passed` 和 `validation.fuzz_passed` 全部为 `true` 时才会创建导出目录和 ZIP。
 
-`rounds` 或 `timeout_seconds` 不是数字时返回 `400`，不会创建或删除导出目录。
+`rounds` 或 `timeout_seconds` 不是数字、或传入布尔值时返回 `400`，不会创建或删除导出目录。
 
 导出目录：
 

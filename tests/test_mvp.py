@@ -714,6 +714,14 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(_clamp_timeout(99), 10.0)
         self.assertEqual(_clamp_timeout("1.5"), 1.5)
 
+    def test_server_rejects_boolean_validation_options(self) -> None:
+        from app.server import _clamp_rounds, _clamp_timeout
+
+        with self.assertRaisesRegex(ValueError, "rounds must be an integer"):
+            _clamp_rounds(False)
+        with self.assertRaisesRegex(ValueError, "timeout_seconds must be a number"):
+            _clamp_timeout(True)
+
     def test_problem_request_parser_handles_string_boolean_flags(self) -> None:
         from app.server import _problem_request_from_body
 
