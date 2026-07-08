@@ -123,6 +123,14 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     _assert(validation["rounds"] == rounds, f"validation rounds recorded for {problem_id}")
     _assert(validation["timeout_seconds"] == 1.5, f"validation timeout recorded for {problem_id}")
 
+    pre_package_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
+    _assert(pre_package_reports["review"]["passed"] is True, "review report persists before package export")
+    _assert(
+        pre_package_reports["validation"]["rounds"] == rounds,
+        "validation report persists before package export",
+    )
+    _assert(pre_package_reports["package"] is None, "package info is absent before package export")
+
     rerun = _post_json(
         f"{base_url}/api/problems/{problem_id}/rerun",
         {"input": problem["samples"][0]["input"], "timeout_seconds": 1.5},

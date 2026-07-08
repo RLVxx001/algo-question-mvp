@@ -74,7 +74,10 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/validate \
 ```bash
 curl -sS http://127.0.0.1:18081/api/problems
 curl -sS http://127.0.0.1:18081/api/problems/<problem_id>
+curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/reports
 ```
+
+运行审查或验证后，报告会持久化到 `data/reports/<problem_id>/`，刷新前端后仍可读取。
 
 ## 审查题目
 
@@ -111,7 +114,7 @@ curl -L -o "<problem_id>.zip" \
 curl -sS -X DELETE http://127.0.0.1:18081/api/problems/<problem_id>
 ```
 
-会同步删除题目 JSON、流程记录、导出目录和 ZIP。
+会同步删除题目 JSON、流程记录、持久化报告、导出目录和 ZIP。
 
 ## 本地测试
 

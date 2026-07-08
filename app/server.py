@@ -13,7 +13,7 @@ from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.reviewer import review_problem
-from app.store import ProblemStore, WorkflowStore
+from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import ValidationError, rerun_case, validate_problem
 from app.workflow import advance_workflow, apply_problem_patch, create_workflow
 
@@ -21,6 +21,7 @@ from app.workflow import advance_workflow, apply_problem_patch, create_workflow
 ROOT = Path(__file__).resolve().parents[1]
 STORE = ProblemStore(ROOT / "data" / "problems")
 WORKFLOW_STORE = WorkflowStore(ROOT / "data" / "workflows")
+REPORT_STORE = ReportStore(ROOT / "data" / "reports")
 PACKAGE_ROOT = ROOT / "data" / "packages"
 STATIC_ROOT = ROOT / "static"
 
@@ -131,6 +132,7 @@ class Handler(BaseHTTPRequestHandler):
             workflow = create_workflow(problem, req, [str(step) for step in manual_steps])
             workflow, result = advance_workflow(workflow, problem, PACKAGE_ROOT)
             problem = result.get("problem", problem)
+            _persist_reports(problem.id, result.get("reports", {}))
             result = _public_workflow_result(result)
             STORE.save(problem)
             WORKFLOW_STORE.save(workflow)
@@ -168,6 +170,7 @@ class Handler(BaseHTTPRequestHandler):
                 confirm_current=bool(body.get("confirm_current", True)),
             )
             problem = result.get("problem", problem)
+            _persist_reports(problem.id, result.get("reports", {}))
             result = _public_workflow_result(result)
             STORE.save(problem)
             WORKFLOW_STORE.save(workflow)
@@ -209,7 +212,9 @@ class Handler(BaseHTTPRequestHandler):
             rounds = _clamp_rounds(body.get("rounds", 100))
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
             report = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
-            self._json(HTTPStatus.OK, report.to_dict())
+            payload = report.to_dict()
+            REPORT_STORE.save_validation(problem_id, payload)
+            self._json(HTTPStatus.OK, payload)
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except ValidationError as exc:
@@ -240,8 +245,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         package_dir = PACKAGE_ROOT / problem_id
-        review = _read_json_file(package_dir / "review_report.json")
-        validation = _read_json_file(package_dir / "validation_report.json")
+        review = REPORT_STORE.get_review(problem_id) or _read_json_file(package_dir / "review_report.json")
+        validation = REPORT_STORE.get_validation(problem_id) or _read_json_file(package_dir / "validation_report.json")
         package = None
         if package_dir.exists():
             package = _package_info(problem_id, package_dir)
@@ -259,7 +264,9 @@ class Handler(BaseHTTPRequestHandler):
     def _review(self, problem_id: str) -> None:
         try:
             problem = STORE.get(problem_id)
-            self._json(HTTPStatus.OK, review_problem(problem).to_dict())
+            report = review_problem(problem).to_dict()
+            REPORT_STORE.save_review(problem_id, report)
+            self._json(HTTPStatus.OK, report)
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except Exception as exc:
@@ -274,6 +281,8 @@ class Handler(BaseHTTPRequestHandler):
             validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             review = review_problem(problem)
             package_dir = export_problem_package(problem, PACKAGE_ROOT, validation, review)
+            REPORT_STORE.save_review(problem.id, review.to_dict())
+            REPORT_STORE.save_validation(problem.id, validation.to_dict())
             self._json(
                 HTTPStatus.OK,
                 {
@@ -314,6 +323,7 @@ class Handler(BaseHTTPRequestHandler):
             STORE.get(problem_id)
             STORE.delete(problem_id)
             WORKFLOW_STORE.delete(problem_id)
+            REPORT_STORE.delete(problem_id)
             removed_package = _remove_package_artifacts(problem_id)
             self._json(
                 HTTPStatus.OK,
@@ -386,6 +396,15 @@ def _package_info(problem_id: str, package_dir: Path) -> dict:
 
 def _package_download_url(problem_id: str) -> str:
     return f"/api/problems/{problem_id}/package/download"
+
+
+def _persist_reports(problem_id: str, reports: dict) -> None:
+    review = reports.get("review")
+    validation = reports.get("validation")
+    if isinstance(review, dict):
+        REPORT_STORE.save_review(problem_id, review)
+    if isinstance(validation, dict):
+        REPORT_STORE.save_validation(problem_id, validation)
 
 
 def _remove_package_artifacts(problem_id: str) -> bool:

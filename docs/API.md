@@ -75,6 +75,7 @@ DELETE /api/problems/{problem_id}
 
 - `data/problems/{problem_id}.json`
 - `data/workflows/{problem_id}.json`，如果存在
+- `data/reports/{problem_id}/`，如果存在
 - `data/packages/{problem_id}/`，如果存在
 - `data/packages/{problem_id}.zip`，如果存在
 
@@ -94,7 +95,16 @@ DELETE /api/problems/{problem_id}
 GET /api/problems/{problem_id}/reports
 ```
 
-如果该题目已经导出过，会返回磁盘中的审查报告、验证报告、题目包目录和 ZIP 下载地址；没有运行过的部分返回 `null`。
+会返回已持久化的审查报告、验证报告、题目包目录和 ZIP 下载地址；没有运行过的部分返回 `null`。
+
+报告持久化位置：
+
+```text
+data/reports/{problem_id}/review_report.json
+data/reports/{problem_id}/validation_report.json
+```
+
+如果题目是旧版本导出的、还没有 `data/reports/{problem_id}/`，接口会兼容读取 `data/packages/{problem_id}/` 下的报告。
 
 ## 审查题目
 
@@ -109,6 +119,8 @@ Content-Type: application/json
 - `score`: 0 到 100 的规则分。
 - `issues`: error/warn 列表。
 - `checks`: 已执行检查项。
+
+响应会写入 `data/reports/{problem_id}/review_report.json`，刷新前端后仍可从 `/reports` 读回。
 
 ## 验证题目
 
@@ -142,6 +154,8 @@ Content-Type: application/json
 - `duration_ms`: 本次验证总耗时。
 - `first_failed_seed`: 第一条随机失败用例的 seed；样例失败或无失败时为 `null`。
 - `failure_stage`: `sample`、`generator`、`brute_force`、`reference`、`compare` 或 `null`。
+
+响应会写入 `data/reports/{problem_id}/validation_report.json`，刷新前端后仍可从 `/reports` 读回。
 
 ## 复跑单个用例
 
