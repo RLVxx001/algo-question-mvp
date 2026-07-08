@@ -1413,6 +1413,20 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(result.expected, "1")
         self.assertEqual(result.actual, "0")
 
+    def test_rerun_case_truncates_long_mismatch_outputs(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.brute_force_solution = "print('e' * 6000)\n"
+        problem.reference_solution = "print('a' * 6000)\n"
+
+        result = rerun_case(problem, "1\n", timeout_seconds=1.0)
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_stage, "compare")
+        self.assertLessEqual(len(result.expected), 4300)
+        self.assertLessEqual(len(result.actual), 4300)
+        self.assertIn("... truncated ...", result.expected)
+        self.assertIn("... truncated ...", result.actual)
+
     def test_review_flags_dangerous_generated_code(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "import subprocess\nprint('x')\n"

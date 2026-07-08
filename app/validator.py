@@ -169,14 +169,22 @@ def rerun_case(problem: GeneratedProblem, case_input: str, timeout_seconds: floa
         try:
             actual = _run_python(ref_path, case_input, timeout_seconds).strip()
         except ValidationError as exc:
-            return RerunReport(problem.id, case_input, expected, "", False, str(exc), "reference")
+            return RerunReport(
+                problem.id,
+                case_input,
+                _truncate_case_output(expected),
+                "",
+                False,
+                str(exc),
+                "reference",
+            )
 
     passed = expected == actual
     return RerunReport(
         problem_id=problem.id,
         input=case_input,
-        expected=expected,
-        actual=actual,
+        expected=_truncate_case_output(expected),
+        actual=_truncate_case_output(actual),
         passed=passed,
         failure_stage=None if passed else "compare",
     )
