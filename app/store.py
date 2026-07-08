@@ -151,14 +151,19 @@ class ReportStore:
 
     def _write(self, problem_id: str, name: str, report: dict) -> None:
         report_dir = self.dir_for(problem_id)
+        if report_dir.is_symlink() or (report_dir.exists() and not report_dir.is_dir()):
+            report_dir.unlink()
         report_dir.mkdir(parents=True, exist_ok=True)
         (report_dir / name).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _read(self, problem_id: str, name: str) -> dict | None:
         try:
-            path = self.dir_for(problem_id) / name
+            report_dir = self.dir_for(problem_id)
         except ValueError:
             return None
+        if report_dir.is_symlink() or not report_dir.is_dir():
+            return None
+        path = report_dir / name
         if not path.exists():
             return None
         try:

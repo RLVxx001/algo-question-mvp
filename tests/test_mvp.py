@@ -532,6 +532,47 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             store.save_review("prob_file", {"problem_id": "prob_file", "passed": True})
             self.assertEqual(store.get_review("prob_file")["problem_id"], "prob_file")
 
+    def test_report_store_save_replaces_file_obstacle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ReportStore(Path(tmp))
+            report_path = store.dir_for("prob_file")
+            report_path.write_text("not a report directory", encoding="utf-8")
+
+            store.save_validation("prob_file", {"problem_id": "prob_file", "sample_passed": True})
+
+            self.assertTrue(report_path.is_dir())
+            self.assertEqual(store.get_validation("prob_file")["problem_id"], "prob_file")
+
+    def test_report_store_save_replaces_symlinked_report_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ReportStore(root / "reports")
+            outside = root / "outside"
+            outside.mkdir()
+            report_path = store.dir_for("prob_link")
+            report_path.symlink_to(outside, target_is_directory=True)
+
+            store.save_review("prob_link", {"problem_id": "prob_link", "passed": True})
+
+            self.assertFalse(report_path.is_symlink())
+            self.assertTrue(report_path.is_dir())
+            self.assertFalse((outside / "review_report.json").exists())
+            self.assertEqual(store.get_review("prob_link")["problem_id"], "prob_link")
+
+    def test_report_store_read_ignores_symlinked_report_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ReportStore(root / "reports")
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "review_report.json").write_text(
+                json.dumps({"problem_id": "prob_link", "passed": True}),
+                encoding="utf-8",
+            )
+            store.dir_for("prob_link").symlink_to(outside, target_is_directory=True)
+
+            self.assertIsNone(store.get_review("prob_link"))
+
     def test_report_store_ignores_invalid_json_report_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = ReportStore(Path(tmp))
