@@ -548,7 +548,7 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
     return ProblemRequest(
         topic=_parse_topic(body.get("topic", "array")),
         difficulty=str(body.get("difficulty", "easy")),
-        language=str(body.get("language", "python")),
+        language=_parse_code_language(body.get("language", "python")),
         statement_language=_parse_statement_language(body.get("statement_language", body.get("natural_language", "zh"))),
         count=_parse_count(body.get("count", DEFAULT_GENERATION_COUNT)),
         use_llm=_parse_bool(body.get("use_llm", True), "use_llm"),
@@ -562,6 +562,13 @@ def _parse_topic(value: object) -> str:
     if not topic:
         raise ValueError("topic is required")
     return topic
+
+
+def _parse_code_language(value: object) -> str:
+    normalized = str(value or "python").strip().lower()
+    if normalized in {"python", "py", "python3", "py3"}:
+        return "python"
+    raise ValueError("language must be python")
 
 
 def _parse_count(value: object) -> int:

@@ -95,6 +95,28 @@ def main() -> int:
     else:
         raise AssertionError("blank topic unexpectedly succeeded")
 
+    python_alias_problem = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "easy", "language": "py", "count": 1, "use_llm": False},
+        timeout=30,
+    )["list"][0]
+    _assert(python_alias_problem["reference_solution"], "python language alias generates Python solution")
+    _assert_deleted(base_url, python_alias_problem["id"])
+    results.append(f"code language alias ok: {python_alias_problem['id']}")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/generate",
+            {"topic": "array", "difficulty": "easy", "language": "java", "count": 1, "use_llm": False},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "unsupported code language returns 400")
+        _assert(body["error"] == "language must be python", "unsupported code language has clear error")
+    else:
+        raise AssertionError("unsupported code language unexpectedly succeeded")
+
     string_false_problem = _post_json(
         f"{base_url}/api/problems/generate",
         {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": "false"},
