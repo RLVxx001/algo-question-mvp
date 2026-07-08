@@ -190,7 +190,7 @@ def apply_problem_patch(problem: GeneratedProblem, patch: dict) -> GeneratedProb
     updates = {}
     for key, value in patch.items():
         if key not in allowed:
-            continue
+            raise ValueError(f"patch contains unsupported field: {key}")
         if key in string_fields:
             updates[key] = _string_or_empty(value)
         elif key in list_fields:

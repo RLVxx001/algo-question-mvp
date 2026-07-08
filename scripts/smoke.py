@@ -505,6 +505,25 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     after_invalid_edit = _get_json(f"{base_url}/api/problems/{problem_id}")
     _assert(after_invalid_edit["samples"] == edited_samples, "invalid sample patch did not overwrite samples")
 
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/edit",
+            {"patch": {"unknown": "value"}},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "unknown edit patch field returns 400")
+        _assert(
+            body["error"] == "patch contains unsupported field: unknown",
+            "unknown edit patch field has clear error",
+        )
+    else:
+        raise AssertionError("unknown edit patch field unexpectedly succeeded")
+
+    after_unknown_edit = _get_json(f"{base_url}/api/problems/{problem_id}")
+    _assert(after_unknown_edit["samples"] == edited_samples, "unknown patch field did not overwrite samples")
+
     _assert_deleted(base_url, problem_id)
     return problem_id
 
