@@ -520,6 +520,18 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertIsNone(store.get_validation(problem.id))
             self.assertFalse(store.delete(problem.id))
 
+    def test_report_store_delete_removes_file_obstacle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ReportStore(Path(tmp))
+            report_path = store.dir_for("prob_file")
+            report_path.write_text("not a report directory", encoding="utf-8")
+
+            self.assertTrue(store.delete("prob_file"))
+
+            self.assertFalse(report_path.exists())
+            store.save_review("prob_file", {"problem_id": "prob_file", "passed": True})
+            self.assertEqual(store.get_review("prob_file")["problem_id"], "prob_file")
+
     def test_report_store_ignores_invalid_json_report_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = ReportStore(Path(tmp))

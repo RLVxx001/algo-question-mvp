@@ -140,7 +140,10 @@ class ReportStore:
             return False
         if not report_dir.exists():
             return False
-        shutil.rmtree(report_dir)
+        if report_dir.is_dir() and not report_dir.is_symlink():
+            shutil.rmtree(report_dir)
+        else:
+            report_dir.unlink()
         return True
 
     def dir_for(self, problem_id: str) -> Path:
