@@ -203,6 +203,7 @@ async function refreshProblems() {
 }
 
 function forgetProblem(id) {
+  state.selectionRequestId += 1;
   state.problems = state.problems.filter((problem) => problem.id !== id);
   delete state.reports[id];
   delete state.workflows[id];

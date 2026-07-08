@@ -688,6 +688,63 @@ test("selectProblem ignores stale responses from earlier selections", async () =
   assert.equal(vm.runInContext("state.selected.id", context), "prob_fast");
 });
 
+test("forgetProblem invalidates pending selection responses for the removed problem", async () => {
+  const context = loadAppContext();
+  let resolveSlow;
+  const slowResponse = new Promise((resolve) => {
+    resolveSlow = resolve;
+  });
+  const slow = {
+    id: "prob_slow",
+    title: "Slow",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+
+  context.fetch = async (path) => {
+    if (path === "/api/problems/prob_slow") {
+      await slowResponse;
+      return {
+        ok: true,
+        json: async () => slow,
+      };
+    }
+    if (path.endsWith("/reports")) {
+      return {
+        ok: true,
+        json: async () => ({}),
+      };
+    }
+    if (path.endsWith("/similar")) {
+      return {
+        ok: true,
+        json: async () => ({ candidates: [] }),
+      };
+    }
+    if (path.endsWith("/workflow")) {
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "workflow not found" }),
+      };
+    }
+    throw new Error(`unexpected request: ${path}`);
+  };
+  context.renderAll = () => {};
+  vm.runInContext(`state.problems = ${JSON.stringify([slow])};`, context);
+
+  const pending = context.selectProblem("prob_slow");
+  vm.runInContext(`forgetProblem("prob_slow");`, context);
+  resolveSlow();
+  await pending;
+
+  assert.equal(vm.runInContext("state.selected", context), null);
+  assert.deepEqual(plain(vm.runInContext("state.problems", context)), []);
+});
+
 test("runReview ignores duplicate clicks while request is in flight", async () => {
   const context = loadAppContext();
   let resolveReview;
