@@ -762,12 +762,21 @@ async function rerunFailedCase(index) {
   const problem = state.selected;
   const failed = state.reports[problem?.id]?.validation?.failed_cases?.[index];
   if (!problem || !failed?.input) return;
+  let options;
+  try {
+    options = rerunOptions();
+    markValidationInvalid();
+  } catch (err) {
+    markValidationInvalid(err);
+    log("复跑失败", err.message, "bad");
+    return;
+  }
   try {
     const data = await api(`/api/problems/${problem.id}/rerun`, {
       method: "POST",
       body: JSON.stringify({
         input: failed.input,
-        timeout_seconds: Number(els.timeoutInput?.value || 2),
+        timeout_seconds: options.timeout_seconds,
       }),
     });
     state.reruns[`${problem.id}:${index}`] = data;
@@ -955,6 +964,12 @@ function problemPatchFromEditForm(form) {
 function validationOptions(controls = els) {
   return {
     rounds: parseClampedInteger(controls.roundsInput?.value, "rounds", 100, 1, 1000),
+    timeout_seconds: parseClampedNumber(controls.timeoutInput?.value, "timeout_seconds", 2, 0.2, 10),
+  };
+}
+
+function rerunOptions(controls = els) {
+  return {
     timeout_seconds: parseClampedNumber(controls.timeoutInput?.value, "timeout_seconds", 2, 0.2, 10),
   };
 }

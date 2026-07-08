@@ -177,3 +177,22 @@ test("validationOptions normalizes validation controls", () => {
     /timeout_seconds must be a number/,
   );
 });
+
+test("rerunOptions normalizes rerun timeout control", () => {
+  const context = loadAppContext();
+
+  assert.deepEqual(
+    plain(context.rerunOptions({ timeoutInput: { value: "0.1" } })),
+    { timeout_seconds: 0.2 },
+  );
+
+  assert.deepEqual(
+    plain(context.rerunOptions({ timeoutInput: { value: "11" } })),
+    { timeout_seconds: 10 },
+  );
+
+  assert.throws(
+    () => context.rerunOptions({ timeoutInput: { value: "fast" } }),
+    /timeout_seconds must be a number/,
+  );
+});
