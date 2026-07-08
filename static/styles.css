@@ -841,6 +841,13 @@ pre {
   padding: 6px 10px;
 }
 
+.case-hint {
+  margin: -4px 0 0;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .package-actions {
   display: flex;
   gap: 8px;

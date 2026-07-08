@@ -11,6 +11,8 @@ const state = {
   selectionRequestId: 0,
 };
 
+const TRUNCATED_REPORT_MARKER = "... truncated ...";
+
 const els = {
   healthText: document.getElementById("healthText"),
   generateForm: document.getElementById("generateForm"),
@@ -867,7 +869,11 @@ function renderFailedCase(problem, failed, index) {
   const key = `${problem.id}:${index}`;
   const rerun = state.reruns[key];
   const hasInput = Boolean(failed.input);
+  const inputTruncated = isTruncatedReportValue(failed.input);
   const rerunBusy = isOperationBusy(`rerun:${problem.id}:${index}`);
+  const canRerun = hasInput && !inputTruncated && !rerunBusy;
+  const rerunLabel = inputTruncated ? "输入已截断" : rerunBusy ? "复跑中" : "复跑用例";
+  const rerunTitle = inputTruncated ? "失败输入已被截断，不能复跑完整用例" : "";
   const rerunBlock = rerun
     ? `
       <div class="rerun-result ${rerun.passed ? "passed" : "failed"}">
@@ -888,8 +894,9 @@ function renderFailedCase(problem, failed, index) {
       </div>
       <div class="mini-toolbar">
         <button class="secondary-button copy-case-button" type="button" data-failed-index="${index}" ${hasInput ? "" : "disabled"}>复制输入</button>
-        <button class="secondary-button rerun-case-button" type="button" data-failed-index="${index}" ${hasInput && !rerunBusy ? "" : "disabled"}>${rerunBusy ? "复跑中" : "复跑用例"}</button>
+        <button class="secondary-button rerun-case-button" type="button" data-failed-index="${index}" title="${escapeHtml(rerunTitle)}" ${canRerun ? "" : "disabled"}>${rerunLabel}</button>
       </div>
+      ${inputTruncated ? `<p class="case-hint">失败输入已截断，不能复跑完整用例。</p>` : ""}
       <h5>Input</h5>
       <pre>${escapeHtml(failed.input || "")}</pre>
       <div class="code-split compact">
@@ -959,6 +966,10 @@ async function rerunFailedCase(index) {
   const problem = state.selected;
   const failed = state.reports[problem?.id]?.validation?.failed_cases?.[index];
   if (!problem || !failed?.input) return;
+  if (isTruncatedReportValue(failed.input)) {
+    log("复跑不可用", "失败输入已被截断，不能代表完整用例。", "warn");
+    return;
+  }
   let options;
   try {
     options = rerunOptions();
@@ -1187,6 +1198,10 @@ function rerunOptions(controls = els) {
   return {
     timeout_seconds: parseClampedNumber(controls.timeoutInput?.value, "timeout_seconds", 2, 0.2, 10),
   };
+}
+
+function isTruncatedReportValue(value) {
+  return typeof value === "string" && value.includes(TRUNCATED_REPORT_MARKER);
 }
 
 async function saveEdit(event) {

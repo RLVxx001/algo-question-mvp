@@ -1107,6 +1107,60 @@ test("renderFailedCase disables rerun button while rerun is busy", () => {
   assert.match(html, /复跑中/);
 });
 
+test("renderFailedCase disables rerun button for truncated failed input", () => {
+  const context = loadAppContext();
+
+  const html = context.renderFailedCase(
+    { id: "prob_a" },
+    { input: "1\n... truncated ...", expected: "1", actual: "0", reason: "wrong answer" },
+    0,
+  );
+
+  assert.match(html, /rerun-case-button[\s\S]*disabled/);
+  assert.match(html, /输入已截断/);
+});
+
+test("rerunFailedCase skips truncated failed input", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  const problem = {
+    id: "prob_a",
+    title: "Problem A",
+    source: "mock",
+    statement_language: "zh",
+  };
+  const validation = {
+    sample_passed: false,
+    fuzz_passed: false,
+    failed_cases: [{ input: "1\n... truncated ...", expected: "1\n", actual: "0\n", reason: "wrong answer" }],
+  };
+
+  context.fetch = async () => {
+    throw new Error("rerun request should not be sent");
+  };
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.reports.prob_a = { validation: ${JSON.stringify(validation)} };
+    `,
+    context,
+  );
+
+  await context.rerunFailedCase(0);
+
+  assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
+  assert.deepEqual(logs, [
+    {
+      title: "复跑不可用",
+      message: "失败输入已被截断，不能代表完整用例。",
+      level: "warn",
+    },
+  ]);
+});
+
 test("rerunFailedCase rerenders after releasing rerun busy state", async () => {
   const context = loadAppContext();
   const problem = {
