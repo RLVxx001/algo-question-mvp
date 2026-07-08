@@ -775,6 +775,60 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(result["reports"]["review"]["passed"])
             self.assertFalse((package_root / problem.id).exists())
 
+    def test_workflow_validate_step_blocks_dangerous_code_before_execution(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key in {"idea", "statement", "constraints", "solutions", "generator", "review"}:
+                step.status = "completed"
+            if step.key == "package":
+                step.status = "completed"
+        workflow.current_step = "validate"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "executed.txt"
+            problem.samples = [{"input": "", "output": "ok\n"}]
+            problem.reference_solution = f"open({str(marker)!r}, 'w').write('ran')\nprint('ok')\n"
+
+            workflow, result = advance_workflow(workflow, problem, root / "packages")
+
+            validate_step = next(step for step in workflow.steps if step.key == "validate")
+            self.assertEqual(workflow.status, "failed")
+            self.assertEqual(validate_step.status, "failed")
+            self.assertIn("review", result["reports"])
+            self.assertNotIn("validation", result["reports"])
+            self.assertFalse(result["reports"]["review"]["passed"])
+            self.assertFalse(marker.exists())
+
+    def test_workflow_package_step_blocks_dangerous_code_before_validation(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key != "package":
+                step.status = "completed"
+        workflow.current_step = "package"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "executed.txt"
+            package_root = root / "packages"
+            problem.samples = [{"input": "", "output": "ok\n"}]
+            problem.reference_solution = f"open({str(marker)!r}, 'w').write('ran')\nprint('ok')\n"
+
+            workflow, result = advance_workflow(workflow, problem, package_root)
+
+            package_step = next(step for step in workflow.steps if step.key == "package")
+            self.assertEqual(workflow.status, "failed")
+            self.assertEqual(package_step.status, "failed")
+            self.assertTrue(result["reports"]["package"]["package_blocked"])
+            self.assertEqual(result["reports"]["package"]["error"], "package blocked by dangerous generated code")
+            self.assertIn("review", result["reports"])
+            self.assertNotIn("validation", result["reports"])
+            self.assertFalse(result["reports"]["review"]["passed"])
+            self.assertFalse(marker.exists())
+            self.assertFalse((package_root / problem.id).exists())
+
     def test_create_workflow_rejects_unknown_manual_steps(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

@@ -8,7 +8,7 @@ from app.exporter import export_problem_package
 from app.generator import generate_workflow_stage
 from app.models import GeneratedProblem, ProblemRequest, ProblemWorkflow, WorkflowStep
 from app.paths import resolve_under
-from app.reviewer import review_problem
+from app.reviewer import review_blocks_execution, review_problem
 from app.validator import ValidationError, validate_problem
 
 
@@ -121,6 +121,15 @@ def advance_workflow(
             continue
 
         if step.key == "validate":
+            review = review_problem(problem)
+            if review_blocks_execution(review):
+                reports["review"] = review.to_dict()
+                step.status = "failed"
+                step.summary = "验证被阻止：生成代码包含危险本地执行"
+                workflow.status = "failed"
+                workflow.updated_at = _now()
+                events.append({"step": step.key, "status": "failed", "summary": step.summary})
+                return workflow, {"events": events, "reports": reports, "problem": problem}
             validation = validate_problem(problem, rounds=30, timeout_seconds=1.0)
             reports["validation"] = validation.to_dict()
             if not validation.fuzz_passed or not validation.sample_passed:
@@ -137,11 +146,23 @@ def advance_workflow(
             continue
 
         if step.key == "package":
-            validation = validate_problem(problem, rounds=30, timeout_seconds=1.0)
             review = review_problem(problem)
-            validation_report = validation.to_dict()
             review_report = review.to_dict()
             reports["review"] = review_report
+            if review_blocks_execution(review):
+                _remove_package_artifacts(package_root, problem.id)
+                reports["package"] = {
+                    "package_blocked": True,
+                    "error": "package blocked by dangerous generated code",
+                }
+                step.status = "failed"
+                step.summary = "导出被阻止：生成代码包含危险本地执行"
+                workflow.status = "failed"
+                workflow.updated_at = _now()
+                events.append({"step": step.key, "status": "failed", "summary": step.summary})
+                return workflow, {"events": events, "reports": reports, "problem": problem}
+            validation = validate_problem(problem, rounds=30, timeout_seconds=1.0)
+            validation_report = validation.to_dict()
             reports["validation"] = validation_report
             if not review.passed or not validation.sample_passed or not validation.fuzz_passed:
                 _remove_package_artifacts(package_root, problem.id)

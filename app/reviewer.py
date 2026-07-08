@@ -70,6 +70,13 @@ def review_problem(problem: GeneratedProblem) -> ReviewReport:
     )
 
 
+def review_blocks_execution(review: ReviewReport) -> bool:
+    return any(
+        issue.severity == "error" and "dangerous local-execution" in issue.message
+        for issue in review.issues
+    )
+
+
 def _require_text(value: str, field: str, issues: list[ReviewIssue]) -> None:
     if not isinstance(value, str) or not value.strip():
         issues.append(ReviewIssue("error", field, "field is required"))

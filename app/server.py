@@ -14,7 +14,7 @@ from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.paths import resolve_under
-from app.reviewer import review_problem
+from app.reviewer import review_blocks_execution, review_problem
 from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import ValidationError, rerun_case, validate_problem
@@ -255,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
             rounds = _clamp_rounds(body.get("rounds", DEFAULT_VALIDATION_ROUNDS))
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             review = review_problem(problem)
-            if _review_blocks_execution(review):
+            if review_blocks_execution(review):
                 review_report = review.to_dict()
                 REPORT_STORE.save_review(problem_id, review_report)
                 self._json(
@@ -289,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             review = review_problem(problem)
-            if _review_blocks_execution(review):
+            if review_blocks_execution(review):
                 review_report = review.to_dict()
                 REPORT_STORE.save_review(problem_id, review_report)
                 self._json(
@@ -360,7 +360,7 @@ class Handler(BaseHTTPRequestHandler):
             review = review_problem(problem)
             review_report = review.to_dict()
             REPORT_STORE.save_review(problem.id, review_report)
-            if _review_blocks_execution(review):
+            if review_blocks_execution(review):
                 _remove_package_artifacts(problem.id)
                 self._json(
                     HTTPStatus.BAD_REQUEST,
@@ -577,13 +577,6 @@ def _reports_block_package(review: dict | None, validation: dict | None) -> bool
         validation.get("sample_passed") is False or validation.get("fuzz_passed") is False
     )
     return review_failed or validation_failed
-
-
-def _review_blocks_execution(review) -> bool:
-    return any(
-        issue.severity == "error" and "dangerous local-execution" in issue.message
-        for issue in review.issues
-    )
 
 
 def _package_download_url(problem_id: str) -> str:
