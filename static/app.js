@@ -311,10 +311,14 @@ function showReportsTab() {
   renderAll();
 }
 
+function showReportsTabForProblem(id) {
+  if (currentProblemId() === id) showReportsTab();
+}
+
 function storeBlockedReviewReport(id, payload) {
   if (!id || !payload?.review) return false;
   updateProblemReports(id, { review: payload.review });
-  showReportsTab();
+  showReportsTabForProblem(id);
   return true;
 }
 
@@ -1002,7 +1006,7 @@ async function rerunFailedCase(index) {
       }),
     });
     state.reruns[`${problem.id}:${index}`] = data;
-    showReportsTab();
+    showReportsTabForProblem(problem.id);
     log("复跑完成", `passed=${data.passed}`, data.passed ? "ok" : "bad");
   } catch (err) {
     if (storeBlockedReviewReport(problem.id, err.payload)) {
@@ -1324,7 +1328,7 @@ async function runReview() {
   try {
     const data = await api(`/api/problems/${id}/review`, { method: "POST", body: "{}" });
     updateProblemReports(id, { review: data });
-    showReportsTab();
+    showReportsTabForProblem(id);
     log("审查完成", `score=${data.score}, passed=${data.passed}`, data.passed ? "ok" : "warn");
   } catch (err) {
     log("审查失败", err.message, "bad");
@@ -1355,7 +1359,7 @@ async function runValidate() {
       body: JSON.stringify(options),
     });
     updateProblemReports(id, { validation: data });
-    showReportsTab();
+    showReportsTabForProblem(id);
     log("验证完成", `fuzz=${data.fuzz_passed}, cases=${data.total_cases}`, data.fuzz_passed ? "ok" : "bad");
   } catch (err) {
     if (storeBlockedReviewReport(id, err.payload)) {

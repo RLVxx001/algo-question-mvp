@@ -992,6 +992,37 @@ test("runReview switches to reports after successful review", async () => {
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
 });
 
+test("finishing stale review does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const review = { problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return { ok: true, json: async () => review };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runReview();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(context.isOperationBusy("review:prob_a"), false);
+});
+
 test("runValidate switches to reports after successful validation", async () => {
   const context = loadAppContext();
   const validation = {
@@ -1020,6 +1051,43 @@ test("runValidate switches to reports after successful validation", async () => 
 
   assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.validation", context)), validation);
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
+});
+
+test("finishing stale validation does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const validation = {
+    problem_id: "prob_a",
+    sample_passed: true,
+    fuzz_passed: true,
+    total_cases: 102,
+    failed_cases: [],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return { ok: true, json: async () => validation };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runValidate();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.validation", context)), validation);
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(context.isOperationBusy("validate:prob_a"), false);
 });
 
 test("runValidate stores review report from execution block", async () => {
@@ -1057,6 +1125,50 @@ test("runValidate stores review report from execution block", async () => {
 
   assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
+  assert.equal(context.isOperationBusy("validate:prob_a"), false);
+});
+
+test("finishing stale blocked validation does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const review = {
+    problem_id: "prob_a",
+    passed: false,
+    score: 65,
+    issues: [{ severity: "error", field: "reference_solution", message: "dangerous local-execution code" }],
+    checks: ["dangerous local-execution patterns checked"],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: "validation blocked by dangerous generated code",
+        review,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runValidate();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
   assert.equal(context.isOperationBusy("validate:prob_a"), false);
 });
 
@@ -1537,6 +1649,62 @@ test("rerunFailedCase stores review report from execution block", async () => {
 
   assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
+  assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
+});
+
+test("finishing stale blocked rerun does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Problem A",
+    source: "mock",
+    statement_language: "zh",
+  };
+  const validation = {
+    sample_passed: false,
+    fuzz_passed: false,
+    failed_cases: [{ input: "1\n", expected: "1\n", actual: "0\n", reason: "wrong answer" }],
+  };
+  const review = {
+    problem_id: "prob_a",
+    passed: false,
+    score: 65,
+    issues: [{ severity: "error", field: "brute_force_solution", message: "dangerous local-execution code" }],
+    checks: ["dangerous local-execution patterns checked"],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: "rerun blocked by dangerous generated code",
+        review,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.activeTab = "statement";
+      state.reports.prob_a = { validation: ${JSON.stringify(validation)} };
+    `,
+    context,
+  );
+
+  await context.rerunFailedCase(0);
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
   assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
 });
 
