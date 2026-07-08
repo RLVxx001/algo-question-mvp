@@ -150,17 +150,41 @@ def _dangerous_callable_aliases(tree: ast.AST, calls: set[str]) -> set[str]:
         changed = False
         known = calls | aliases
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and _is_dangerous_callable_ref(node.value, known):
-                targets = node.targets
-            elif isinstance(node, ast.AnnAssign) and node.value and _is_dangerous_callable_ref(node.value, known):
-                targets = [node.target]
+            if isinstance(node, ast.Assign):
+                names = [
+                    name
+                    for target in node.targets
+                    for name in _dangerous_alias_target_names(target, node.value, known)
+                ]
+            elif isinstance(node, ast.AnnAssign) and node.value:
+                names = _dangerous_alias_target_names(node.target, node.value, known)
             else:
-                continue
-            for target in targets:
-                if isinstance(target, ast.Name) and target.id not in known:
-                    aliases.add(target.id)
+                names = []
+            for name in names:
+                if name not in known:
+                    aliases.add(name)
                     changed = True
     return aliases
+
+
+def _dangerous_alias_target_names(target: ast.AST, value: ast.AST, calls: set[str]) -> list[str]:
+    if _is_dangerous_callable_ref(value, calls):
+        return _assignment_target_names(target)
+    if isinstance(target, ast.Tuple | ast.List) and isinstance(value, ast.Tuple | ast.List):
+        return [
+            name
+            for target_item, value_item in zip(target.elts, value.elts)
+            for name in _dangerous_alias_target_names(target_item, value_item, calls)
+        ]
+    return []
+
+
+def _assignment_target_names(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, ast.Tuple | ast.List):
+        return [name for item in node.elts for name in _assignment_target_names(item)]
+    return []
 
 
 def _is_dangerous_callable_ref(node: ast.AST, calls: set[str]) -> bool:
