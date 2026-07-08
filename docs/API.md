@@ -364,6 +364,8 @@ Content-Type: application/json
 
 `manual_steps` 表示哪些步骤需要停下来等人工确认；没列进去的步骤会自动通过或自动执行。
 
+分步流程走到 `package` 步骤时也会重新运行审查和验证，并遵守和 `/api/problems/{problem_id}/package` 相同的导出闸门。失败时流程状态会变为 `failed`，返回的 `reports.package.package_blocked` 为 `true`，不会创建导出目录。
+
 ## 查看流程状态
 
 ```http

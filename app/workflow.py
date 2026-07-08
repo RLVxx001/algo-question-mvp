@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.exporter import export_problem_package
 from app.generator import generate_workflow_stage
@@ -119,10 +121,25 @@ def advance_workflow(
         if step.key == "package":
             validation = validate_problem(problem, rounds=30, timeout_seconds=1.0)
             review = review_problem(problem)
+            validation_report = validation.to_dict()
+            review_report = review.to_dict()
+            reports["review"] = review_report
+            reports["validation"] = validation_report
+            if not review.passed or not validation.sample_passed or not validation.fuzz_passed:
+                _remove_package_artifacts(package_root, problem.id)
+                reports["package"] = {
+                    "package_blocked": True,
+                    "error": "package blocked by failed review or validation",
+                }
+                step.status = "failed"
+                step.summary = "导出被阻止：审查或验证未通过"
+                workflow.status = "failed"
+                workflow.updated_at = _now()
+                events.append({"step": step.key, "status": "failed", "summary": step.summary})
+                return workflow, {"events": events, "reports": reports, "problem": problem}
             package_dir = export_problem_package(problem, package_root, validation, review)
-            reports["review"] = review.to_dict()
-            reports["validation"] = validation.to_dict()
             reports["package"] = {
+                "package_blocked": False,
                 "package_dir": str(package_dir),
                 "download_url": f"/api/problems/{problem.id}/package/download",
             }
@@ -240,3 +257,13 @@ def _step_summary(key: str, problem: GeneratedProblem) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _remove_package_artifacts(package_root, problem_id: str) -> None:
+    root = Path(package_root).resolve()
+    package_dir = (root / problem_id).resolve()
+    archive_path = (root / f"{problem_id}.zip").resolve()
+    if str(package_dir).startswith(str(root)) and package_dir.is_dir():
+        shutil.rmtree(package_dir)
+    if str(archive_path).startswith(str(root)) and archive_path.exists():
+        archive_path.unlink()

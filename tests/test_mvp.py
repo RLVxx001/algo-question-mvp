@@ -14,7 +14,7 @@ from app.reviewer import review_problem
 from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import rerun_case, validate_problem
-from app.workflow import apply_problem_patch, create_workflow
+from app.workflow import advance_workflow, apply_problem_patch, create_workflow
 
 
 class AlgorithmQuestionMVPTest(unittest.TestCase):
@@ -377,6 +377,50 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(payload["package_blocked"])
             self.assertTrue(payload["validation"]["fuzz_passed"])
             self.assertFalse(payload["review"]["passed"])
+            self.assertFalse((package_root / problem.id).exists())
+
+    def test_workflow_package_step_rejects_failed_validation_without_exporting(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "print(0)\n"
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key != "package":
+                step.status = "completed"
+        workflow.current_step = "package"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            package_root = Path(tmp) / "packages"
+
+            workflow, result = advance_workflow(workflow, problem, package_root)
+
+            package_step = next(step for step in workflow.steps if step.key == "package")
+            self.assertEqual(workflow.status, "failed")
+            self.assertEqual(package_step.status, "failed")
+            self.assertTrue(result["reports"]["package"]["package_blocked"])
+            self.assertFalse(result["reports"]["validation"]["sample_passed"])
+            self.assertTrue(result["reports"]["review"]["passed"])
+            self.assertFalse((package_root / problem.id).exists())
+
+    def test_workflow_package_step_rejects_failed_review_without_exporting(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.samples = []
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key != "package":
+                step.status = "completed"
+        workflow.current_step = "package"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            package_root = Path(tmp) / "packages"
+
+            workflow, result = advance_workflow(workflow, problem, package_root)
+
+            package_step = next(step for step in workflow.steps if step.key == "package")
+            self.assertEqual(workflow.status, "failed")
+            self.assertEqual(package_step.status, "failed")
+            self.assertTrue(result["reports"]["package"]["package_blocked"])
+            self.assertTrue(result["reports"]["validation"]["fuzz_passed"])
+            self.assertFalse(result["reports"]["review"]["passed"])
             self.assertFalse((package_root / problem.id).exists())
 
     def test_server_edit_invalidates_reports_and_package_artifacts(self) -> None:
