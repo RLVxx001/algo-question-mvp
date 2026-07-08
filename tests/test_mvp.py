@@ -797,6 +797,33 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertIn("samples", body["error"])
 
+    def test_server_edit_rejects_non_object_body_without_saving(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        original_title = problem.title
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            body = b'["bad"]'
+            handler = object.__new__(Handler)
+            handler.headers = {"Content-Length": str(len(body))}
+            handler.rfile = io.BytesIO(body)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", problem_store):
+                handler._edit_problem(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            self.assertEqual(problem_store.get(problem.id).title, original_title)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "JSON body must be an object")
+
     def test_server_edit_rejects_unknown_patch_fields_without_saving(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         original_title = problem.title

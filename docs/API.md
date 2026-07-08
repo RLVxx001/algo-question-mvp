@@ -113,7 +113,7 @@ Content-Type: application/json
 }
 ```
 
-支持更新的字段包括：`title`、`statement`、`input_format`、`output_format`、`constraints`、`samples`、`tags`、`solution_explanation`、`reference_solution`、`brute_force_solution`、`generator_code`。传入其他顶层字段会返回 `400`，不会覆盖原题内容。
+请求体必须是对象。支持更新的字段包括：`title`、`statement`、`input_format`、`output_format`、`constraints`、`samples`、`tags`、`solution_explanation`、`reference_solution`、`brute_force_solution`、`generator_code`。传入其他顶层字段会返回 `400`，不会覆盖原题内容。
 
 `constraints` 和 `tags` 必须是字符串数组，`samples` 必须是对象数组，且每个样例都包含 `input` 和 `output`。补丁格式不合法时返回 `400`，不会覆盖原题内容。
 

@@ -539,6 +539,22 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     try:
         _post_json(
             f"{base_url}/api/problems/{problem_id}/edit",
+            ["bad"],
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "non-object edit body returns 400")
+        _assert(body["error"] == "JSON body must be an object", "non-object edit body has clear error")
+    else:
+        raise AssertionError("non-object edit body unexpectedly succeeded")
+
+    after_non_object_edit = _get_json(f"{base_url}/api/problems/{problem_id}")
+    _assert(after_non_object_edit["samples"] == edited_samples, "non-object edit body did not overwrite samples")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/edit",
             {"patch": {"unknown": "value"}},
             timeout=30,
         )

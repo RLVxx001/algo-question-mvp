@@ -222,6 +222,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
+            if not isinstance(body, dict):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "patch must be an object"})
+                return
             patch = body.get("patch", body)
             if not isinstance(patch, dict):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "patch must be an object"})
