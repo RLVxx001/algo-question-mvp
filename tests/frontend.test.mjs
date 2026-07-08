@@ -345,6 +345,37 @@ test("loadProblems logs list failures and preserves existing problems", async ()
   assert.deepEqual(logs, [{ title: "题目列表读取失败", message: "store unavailable", level: "warn" }]);
 });
 
+test("refreshProblems disables refresh button and ignores duplicate refreshes", async () => {
+  const context = loadAppContext();
+  let resolveRefresh;
+  let requestCount = 0;
+  const refreshResponse = new Promise((resolve) => {
+    resolveRefresh = resolve;
+  });
+
+  context.fetch = async () => {
+    requestCount += 1;
+    await refreshResponse;
+    return {
+      ok: true,
+      json: async () => ({ list: [] }),
+    };
+  };
+  context.__elements.refreshButton.innerHTML = `<span>刷新</span>`;
+
+  const first = context.refreshProblems();
+  const second = context.refreshProblems();
+
+  assert.equal(requestCount, 1);
+  assert.equal(context.__elements.refreshButton.disabled, true);
+  assert.match(context.__elements.refreshButton.innerHTML, /刷新中/);
+  resolveRefresh();
+  await Promise.all([first, second]);
+  assert.equal(context.__elements.refreshButton.disabled, false);
+  assert.equal(context.__elements.refreshButton.innerHTML, `<span>刷新</span>`);
+  assert.equal(context.isOperationBusy("refresh"), false);
+});
+
 test("selectProblem removes missing problem from list without throwing", async () => {
   const context = loadAppContext();
   const logs = [];

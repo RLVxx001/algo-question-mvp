@@ -173,6 +173,28 @@ async function loadProblems(selectLatest = false) {
   }
 }
 
+async function refreshProblems() {
+  const operationKey = "refresh";
+  if (!beginOperation(operationKey)) return;
+  const button = els.refreshButton;
+  if (button && !button.dataset.originalText) {
+    button.dataset.originalText = button.innerHTML;
+  }
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = `<span class="button-icon">...</span><span>刷新中</span>`;
+  }
+  try {
+    await loadProblems(false);
+  } finally {
+    endOperation(operationKey);
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = button.dataset.originalText;
+    }
+  }
+}
+
 function forgetProblem(id) {
   state.problems = state.problems.filter((problem) => problem.id !== id);
   delete state.reports[id];
@@ -1337,7 +1359,7 @@ function bindEvents() {
   els.generateForm.addEventListener("submit", handleGenerate);
   els.topicInput.addEventListener("input", () => markGenerationInvalid());
   els.countInput.addEventListener("input", () => markGenerationInvalid());
-  els.refreshButton.addEventListener("click", () => loadProblems(false));
+  els.refreshButton.addEventListener("click", refreshProblems);
   els.problemList.addEventListener("click", (event) => {
     const button = event.target.closest(".problem-item");
     if (button) selectProblem(button.dataset.id);
