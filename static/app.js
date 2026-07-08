@@ -306,6 +306,32 @@ function updateProblemReports(id, updates) {
   state.reruns = merged.reruns;
 }
 
+function syncProblemSummary(problem) {
+  if (!problem?.id) return;
+  let found = false;
+  state.problems = state.problems.map((existing) => {
+    if (existing.id !== problem.id) return existing;
+    found = true;
+    return problemSummaryFromDetail(problem, existing);
+  });
+  if (!found) {
+    state.problems.push(problemSummaryFromDetail(problem));
+  }
+}
+
+function problemSummaryFromDetail(problem, existing = {}) {
+  return {
+    id: problem.id,
+    title: problem.title ?? existing.title ?? "",
+    topic: problem.topic ?? existing.topic ?? "",
+    difficulty: problem.difficulty ?? existing.difficulty ?? "",
+    tags: Array.isArray(problem.tags) ? problem.tags : existing.tags || [],
+    created_at: problem.created_at ?? existing.created_at ?? "",
+    source: problem.source ?? existing.source ?? "",
+    statement_language: problem.statement_language ?? existing.statement_language ?? "zh",
+  };
+}
+
 function showReportsTab() {
   state.activeTab = "reports";
   renderAll();
@@ -1243,6 +1269,7 @@ async function saveEdit(event) {
       body: JSON.stringify({ patch }),
     });
     state.selected = problem;
+    syncProblemSummary(problem);
     if (problem.changed !== false) {
       state.reports[id] = {};
       clearRerunsForProblem(id);
@@ -1281,6 +1308,7 @@ async function continueWorkflow(includePatch) {
       body: JSON.stringify(payload),
     });
     state.selected = data.problem;
+    syncProblemSummary(data.problem);
     state.workflows[id] = data.workflow;
     if (data.changed || data.reports_invalidated || data.package_invalidated) {
       invalidateProblemReports(id);

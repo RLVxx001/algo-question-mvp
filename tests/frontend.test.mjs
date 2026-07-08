@@ -1471,7 +1471,21 @@ test("saveEdit rerenders after releasing edit busy state", async () => {
         ? { similar: [] }
         : { ...problem, ...editedValues, id: problem.id, changed: true },
   });
-  vm.runInContext(`state.selected = ${JSON.stringify(problem)};`, context);
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.problems = [${JSON.stringify({
+        id: problem.id,
+        title: problem.title,
+        topic: "array",
+        difficulty: "easy",
+        source: "mock",
+        statement_language: "zh",
+        tags: [],
+      })}];
+    `,
+    context,
+  );
 
   await context.saveEdit({
     preventDefault() {},
@@ -1479,6 +1493,7 @@ test("saveEdit rerenders after releasing edit busy state", async () => {
   });
 
   assert.equal(busyStates.at(-1), false);
+  assert.equal(vm.runInContext("state.problems[0].title", context), "Edited title");
 });
 
 test("renderFailedCase disables rerun button while rerun is busy", () => {
@@ -1821,6 +1836,15 @@ test("continueWorkflow captures edit patch before rerendering", async () => {
   vm.runInContext(
     `
       state.selected = ${JSON.stringify(originalProblem)};
+      state.problems = [${JSON.stringify({
+        id: originalProblem.id,
+        title: originalProblem.title,
+        topic: originalProblem.topic,
+        difficulty: originalProblem.difficulty,
+        source: originalProblem.source,
+        statement_language: originalProblem.statement_language,
+        tags: originalProblem.tags,
+      })}];
       state.activeTab = "edit";
       state.workflows[${JSON.stringify(originalProblem.id)}] = {
         problem_id: ${JSON.stringify(originalProblem.id)},
@@ -1835,6 +1859,7 @@ test("continueWorkflow captures edit patch before rerendering", async () => {
   await context.continueWorkflow(true);
 
   assert.equal(capturedPayload.patch.title, "Edited title");
+  assert.equal(vm.runInContext("state.problems[0].title", context), "Edited title");
 });
 
 test("continueWorkflow restores workflow state when request fails", async () => {
