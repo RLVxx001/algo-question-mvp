@@ -14,6 +14,8 @@ class ProblemStore:
 
     def save(self, problem: GeneratedProblem) -> None:
         path = self.path_for(problem.id)
+        if path.is_symlink():
+            path.unlink()
         path.write_text(json.dumps(problem.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     def get(self, problem_id: str) -> GeneratedProblem:
@@ -21,7 +23,7 @@ class ProblemStore:
             path = self.path_for(problem_id)
         except ValueError as exc:
             raise KeyError(problem_id) from exc
-        if not path.exists():
+        if path.is_symlink() or not path.is_file():
             raise KeyError(problem_id)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -57,6 +59,8 @@ class ProblemStore:
 
 
 def _read_problem_for_list(path: Path) -> GeneratedProblem | None:
+    if path.is_symlink() or not path.is_file():
+        return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -79,7 +83,10 @@ class WorkflowStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def save(self, workflow: ProblemWorkflow) -> None:
-        self.path_for(workflow.problem_id).write_text(
+        path = self.path_for(workflow.problem_id)
+        if path.is_symlink():
+            path.unlink()
+        path.write_text(
             json.dumps(workflow.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
@@ -89,7 +96,7 @@ class WorkflowStore:
             path = self.path_for(problem_id)
         except ValueError as exc:
             raise KeyError(problem_id) from exc
-        if not path.exists():
+        if path.is_symlink() or not path.is_file():
             raise KeyError(problem_id)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))

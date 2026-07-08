@@ -291,6 +291,18 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
 
             self.assertEqual([item.id for item in store.list()], [problem.id])
 
+    def test_problem_store_list_ignores_symlinked_problem_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ProblemStore(root / "problems")
+            outside = root / "outside.json"
+            outside.write_text(json.dumps(problem.to_dict()), encoding="utf-8")
+            store.path_for(problem.id).symlink_to(outside)
+
+            self.assertEqual(store.list(), [])
+
     def test_server_problem_list_ignores_invalid_problem_files(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
@@ -329,6 +341,36 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
                 with self.subTest(problem_id=problem_id):
                     with self.assertRaises(KeyError):
                         store.get(problem_id)
+
+    def test_problem_store_get_ignores_symlinked_problem_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ProblemStore(root / "problems")
+            outside = root / "outside.json"
+            outside.write_text(json.dumps(problem.to_dict()), encoding="utf-8")
+            store.path_for(problem.id).symlink_to(outside)
+
+            with self.assertRaises(KeyError):
+                store.get(problem.id)
+
+    def test_problem_store_save_replaces_symlinked_problem_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ProblemStore(root / "problems")
+            outside = root / "outside.json"
+            outside.write_text("outside", encoding="utf-8")
+            problem_path = store.path_for(problem.id)
+            problem_path.symlink_to(outside)
+
+            store.save(problem)
+
+            self.assertFalse(problem_path.is_symlink())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+            self.assertEqual(store.get(problem.id).id, problem.id)
 
     def test_server_problem_detail_returns_not_found_for_invalid_problem_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -388,6 +430,38 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
 
             with self.assertRaises(KeyError):
                 store.get(problem.id)
+
+    def test_workflow_store_get_ignores_symlinked_workflow_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = WorkflowStore(root / "workflows")
+            outside = root / "outside.json"
+            outside.write_text(json.dumps(workflow.to_dict()), encoding="utf-8")
+            store.path_for(problem.id).symlink_to(outside)
+
+            with self.assertRaises(KeyError):
+                store.get(problem.id)
+
+    def test_workflow_store_save_replaces_symlinked_workflow_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = WorkflowStore(root / "workflows")
+            outside = root / "outside.json"
+            outside.write_text("outside", encoding="utf-8")
+            workflow_path = store.path_for(problem.id)
+            workflow_path.symlink_to(outside)
+
+            store.save(workflow)
+
+            self.assertFalse(workflow_path.is_symlink())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+            self.assertEqual(store.get(problem.id).problem_id, problem.id)
 
     def test_server_workflow_endpoint_returns_not_found_for_invalid_workflow_file(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
