@@ -40,6 +40,9 @@ def main() -> int:
     mock_problem_id = _run_problem_flow(base_url, use_llm=False, topic="string", rounds=30)
     results.append(f"mock flow ok: {mock_problem_id}")
 
+    duplicate_ids = _run_similarity_flow(base_url)
+    results.append(f"similarity flow ok: {', '.join(duplicate_ids)}")
+
     zh_problem = _post_json(
         f"{base_url}/api/problems/generate",
         {
@@ -97,6 +100,33 @@ def main() -> int:
     return 0
 
 
+def _run_similarity_flow(base_url: str) -> list[str]:
+    first = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": False},
+        timeout=30,
+    )["list"][0]
+    second = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": False},
+        timeout=30,
+    )["list"][0]
+    ids = [first["id"], second["id"]]
+    try:
+        report = _get_json(f"{base_url}/api/problems/{first['id']}/similar")
+        _assert(report["problem_id"] == first["id"], "similar endpoint returns selected problem id")
+        _assert(report["has_risk"] is True, "similar endpoint reports duplicate risk")
+        matching_candidates = [
+            candidate for candidate in report["candidates"] if candidate["problem_id"] == second["id"]
+        ]
+        _assert(bool(matching_candidates), "similar endpoint returns duplicate candidate")
+        _assert(matching_candidates[0]["score"] >= report["threshold"], "similar candidate passes threshold")
+    finally:
+        for problem_id in ids:
+            _assert_deleted(base_url, problem_id)
+    return ids
+
+
 def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> str:
     generated = _post_json(
         f"{base_url}/api/problems/generate",
@@ -117,6 +147,9 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
 
     detail = _get_json(f"{base_url}/api/problems/{problem_id}")
     _assert(detail["id"] == problem_id, "detail endpoint returned selected problem")
+    similarity = _get_json(f"{base_url}/api/problems/{problem_id}/similar")
+    _assert(similarity["problem_id"] == problem_id, "similar endpoint returns selected problem")
+    _assert("candidates" in similarity, "similar endpoint includes candidates")
 
     review = _post_json(f"{base_url}/api/problems/{problem_id}/review", {}, timeout=30)
     _assert(review["passed"] is True, f"review passed for {problem_id}")

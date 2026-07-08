@@ -11,6 +11,7 @@ from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import generate_problem
 from app.models import GeneratedProblem, ProblemRequest
 from app.reviewer import review_problem
+from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import rerun_case, validate_problem
 from app.workflow import apply_problem_patch, create_workflow
@@ -147,6 +148,48 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertFalse(payload["llm"]["configured"])
         self.assertEqual(payload["llm"]["active_mode"], "template")
         self.assertEqual(payload["llm"]["fallback_source"], "mock")
+
+    def test_similarity_finds_duplicate_problem_candidates(self) -> None:
+        base = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        duplicate = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        different = generate_problem(ProblemRequest(topic="prefix sum", use_llm=False))
+
+        report = find_similar_problems(base, [duplicate, different], threshold=0.35)
+
+        self.assertEqual(report.problem_id, base.id)
+        self.assertTrue(report.has_risk)
+        self.assertEqual(len(report.candidates), 1)
+        self.assertEqual(report.candidates[0].problem_id, duplicate.id)
+        self.assertGreaterEqual(report.candidates[0].score, 0.35)
+        self.assertIn("title", report.candidates[0].matched_fields)
+
+    def test_server_similarity_endpoint_excludes_self_and_sorts_candidates(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        duplicate = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        unrelated = generate_problem(ProblemRequest(topic="stack", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ProblemStore(Path(tmp) / "problems")
+            store.save(problem)
+            store.save(duplicate)
+            store.save(unrelated)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", store):
+                handler._similar(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["problem_id"], problem.id)
+            self.assertTrue(payload["has_risk"])
+            self.assertEqual([item["problem_id"] for item in payload["candidates"]], [duplicate.id])
 
     def test_stores_can_delete_problem_and_workflow_files(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

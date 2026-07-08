@@ -83,10 +83,11 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/validate \
 curl -sS http://127.0.0.1:18081/api/problems
 curl -sS http://127.0.0.1:18081/api/problems/<problem_id>
 curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/reports
+curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/similar
 curl -sS http://127.0.0.1:18081/api/runtime
 ```
 
-运行审查或验证后，报告会持久化到 `data/reports/<problem_id>/`，刷新前端后仍可读取。
+运行审查或验证后，报告会持久化到 `data/reports/<problem_id>/`，刷新前端后仍可读取。相似题接口会从当前本地题库中找出可能重复的题目，前端报告页也会展示这类风险。
 
 ## 编辑题目
 

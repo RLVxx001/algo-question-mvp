@@ -6,6 +6,7 @@ const state = {
   workflows: {},
   reruns: {},
   runtime: null,
+  similarity: {},
 };
 
 const els = {
@@ -135,6 +136,7 @@ async function selectProblem(id) {
   state.activeTab = "statement";
   state.reports[id] = state.reports[id] || {};
   await loadStoredReports(id);
+  await loadSimilarity(id);
   await loadWorkflow(id);
   renderAll();
   log("已选择题目", `${problem.title} (${problem.source})`, "ok");
@@ -159,6 +161,15 @@ async function loadStoredReports(id) {
     };
   } catch (err) {
     log("报告读取失败", err.message, "warn");
+  }
+}
+
+async function loadSimilarity(id) {
+  try {
+    state.similarity[id] = await api(`/api/problems/${id}/similar`);
+  } catch (err) {
+    delete state.similarity[id];
+    log("相似题读取失败", err.message, "warn");
   }
 }
 
@@ -510,6 +521,7 @@ function renderReports(problem) {
   const reports = state.reports[problem.id] || {};
   els.detailContent.innerHTML = `
     <h3>报告</h3>
+    ${renderSimilaritySummary(state.similarity[problem.id])}
     ${renderReviewSummary(reports.review)}
     ${renderValidationSummary(problem, reports.validation)}
     ${renderPackageSummary(problem, reports.package)}
@@ -522,6 +534,50 @@ function renderReportBlock(report, emptyText) {
     return `<div class="empty-report">${escapeHtml(emptyText)}</div>`;
   }
   return `<pre>${escapeHtml(JSON.stringify(report, null, 2))}</pre>`;
+}
+
+function renderSimilaritySummary(report) {
+  if (!report) {
+    return `
+      <section class="report-card">
+        <div class="report-heading"><h4>相似题</h4><span class="status-pill">未读取</span></div>
+        <div class="empty-report">还没有读取相似题分析。</div>
+      </section>
+    `;
+  }
+  const candidates = report.candidates || [];
+  const rows = candidates.length
+    ? candidates
+        .map(
+          (candidate) => `
+            <li class="issue ${escapeHtml(candidate.risk)}">
+              <strong>${escapeHtml(candidate.risk)}</strong>
+              <span>${escapeHtml(candidate.title)}</span>
+              <p>${escapeHtml(candidate.reason)} / ${escapeHtml(candidate.problem_id)}</p>
+            </li>
+          `,
+        )
+        .join("")
+    : `<li class="issue ok"><strong>ok</strong><span>all</span><p>未发现明显相似题。</p></li>`;
+  const highest = candidates[0]?.risk || "ok";
+  return `
+    <section class="report-card">
+      <div class="report-heading">
+        <h4>相似题</h4>
+        <span class="status-pill ${report.has_risk ? "waiting_user" : "completed"}">
+          ${report.has_risk ? `风险 ${escapeHtml(highest)}` : "未发现"}
+        </span>
+      </div>
+      <div class="summary-grid">
+        <div><span>阈值</span><strong>${escapeHtml(report.threshold ?? "-")}</strong></div>
+        <div><span>候选</span><strong>${candidates.length}</strong></div>
+        <div><span>最高风险</span><strong>${escapeHtml(highest)}</strong></div>
+        <div><span>状态</span><strong>${report.has_risk ? "需人工确认" : "正常"}</strong></div>
+      </div>
+      <ul class="issue-list">${rows}</ul>
+      <details><summary>原始相似题 JSON</summary>${renderReportBlock(report, "")}</details>
+    </section>
+  `;
 }
 
 function renderReviewSummary(report) {
@@ -815,6 +871,7 @@ async function saveEdit(event) {
     });
     state.selected = problem;
     state.reports[id] = {};
+    await loadSimilarity(id);
     clearRerunsForProblem(id);
     renderAll();
     log("编辑已保存", "旧报告和导出包已失效，请重新审查/验证。", "ok");
@@ -933,6 +990,7 @@ async function deleteSelectedProblem() {
     const data = await api(`/api/problems/${problem.id}`, { method: "DELETE" });
     delete state.reports[problem.id];
     delete state.workflows[problem.id];
+    delete state.similarity[problem.id];
     clearRerunsForProblem(problem.id);
     state.selected = null;
     await loadProblems(false);

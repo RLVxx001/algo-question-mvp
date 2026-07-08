@@ -163,6 +163,32 @@ data/reports/{problem_id}/validation_report.json
 
 如果题目是旧版本导出的、还没有 `data/reports/{problem_id}/`，接口会兼容读取 `data/packages/{problem_id}/` 下的报告。
 
+## 查看相似题
+
+```http
+GET /api/problems/{problem_id}/similar
+```
+
+会从当前本地题库中排除自己后进行相似度分析，返回最多 5 个候选。相似度基于标题、知识点、标签和题面词元的加权 Jaccard 分数，用于人工审核重复风险，不会阻止生成或导出。
+
+```json
+{
+  "problem_id": "prob_x",
+  "threshold": 0.35,
+  "has_risk": true,
+  "candidates": [
+    {
+      "problem_id": "prob_y",
+      "title": "目标和配对计数",
+      "score": 0.82,
+      "risk": "high",
+      "matched_fields": ["title", "topic", "tags"],
+      "reason": "matched title, topic, tags with score 0.82"
+    }
+  ]
+}
+```
+
 ## 审查题目
 
 ```http

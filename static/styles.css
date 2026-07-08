@@ -788,12 +788,18 @@ pre {
 }
 
 .issue.error strong,
-.issue.warn strong {
+.issue.high strong {
   color: var(--bad);
 }
 
-.issue.warn strong {
+.issue.warn strong,
+.issue.medium strong {
   color: var(--warn);
+}
+
+.issue.low strong,
+.issue.ok strong {
+  color: var(--ok);
 }
 
 .issue p {

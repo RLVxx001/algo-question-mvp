@@ -13,6 +13,7 @@ from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.reviewer import review_problem
+from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import ValidationError, rerun_case, validate_problem
 from app.workflow import advance_workflow, apply_problem_patch, create_workflow
@@ -56,6 +57,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/reports"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/reports")
             self._reports(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/similar"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/similar")
+            self._similar(problem_id)
             return
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/workflow"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/workflow")
@@ -280,6 +285,16 @@ class Handler(BaseHTTPRequestHandler):
                 "package": package,
             },
         )
+
+    def _similar(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            report = find_similar_problems(problem, STORE.list())
+            self._json(HTTPStatus.OK, report.to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
     def _review(self, problem_id: str) -> None:
         try:
