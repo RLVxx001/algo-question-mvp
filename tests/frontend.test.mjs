@@ -284,6 +284,95 @@ test("invalidateProblemState clears reports and current problem reruns", () => {
   });
 });
 
+test("continueWorkflow captures edit patch before rerendering", async () => {
+  const context = loadAppContext();
+  const originalProblem = {
+    id: "prob_a",
+    title: "Original title",
+    statement: "Original statement",
+    input_format: "Input",
+    output_format: "Output",
+    constraints: ["1 <= n <= 10"],
+    samples: [{ input: "1", output: "1" }],
+    tags: ["array"],
+    solution_explanation: "Original solution",
+    reference_solution: "print(input())\n",
+    brute_force_solution: "print(input())\n",
+    generator_code: "print('1')\n",
+  };
+  const editedValues = {
+    title: "Edited title",
+    statement: originalProblem.statement,
+    input_format: originalProblem.input_format,
+    output_format: originalProblem.output_format,
+    constraints: originalProblem.constraints.join("\n"),
+    sample_input: ["1"],
+    sample_output: ["1"],
+    tags: originalProblem.tags.join("\n"),
+    solution_explanation: originalProblem.solution_explanation,
+    reference_solution: originalProblem.reference_solution,
+    brute_force_solution: originalProblem.brute_force_solution,
+    generator_code: originalProblem.generator_code,
+  };
+  const originalValues = { ...editedValues, title: originalProblem.title };
+  let capturedPayload = null;
+
+  context.FormData = class FakeFormData {
+    constructor(form) {
+      this.values = form.__values || {};
+    }
+
+    get(name) {
+      const value = this.values[name];
+      return Array.isArray(value) ? value[0] : value;
+    }
+
+    getAll(name) {
+      const value = this.values[name];
+      if (Array.isArray(value)) return value;
+      return value == null ? [] : [value];
+    }
+  };
+  context.__elements.editForm = { __values: editedValues };
+  context.renderAll = () => {
+    context.__elements.editForm = { __values: originalValues };
+  };
+  context.fetch = async (path, options) => {
+    capturedPayload = JSON.parse(options.body);
+    return {
+      ok: true,
+      json: async () => ({
+        problem: { ...originalProblem, title: capturedPayload.patch?.title || originalProblem.title },
+        workflow: {
+          problem_id: originalProblem.id,
+          status: "completed",
+          current_step: "done",
+          steps: [],
+        },
+        result: {},
+        changed: Boolean(capturedPayload.patch),
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(originalProblem)};
+      state.activeTab = "edit";
+      state.workflows[${JSON.stringify(originalProblem.id)}] = {
+        problem_id: ${JSON.stringify(originalProblem.id)},
+        status: "waiting_user",
+        current_step: "statement",
+        steps: [{ key: "statement", status: "waiting_user", summary: "" }]
+      };
+    `,
+    context,
+  );
+
+  await context.continueWorkflow(true);
+
+  assert.equal(capturedPayload.patch.title, "Edited title");
+});
+
 test("topic input event clears generation validation state", () => {
   const context = loadAppContext();
 

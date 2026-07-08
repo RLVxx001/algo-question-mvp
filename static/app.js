@@ -1041,8 +1041,6 @@ async function saveEdit(event) {
 async function continueWorkflow(includePatch) {
   const id = currentProblemId();
   if (!id) return;
-  markCurrentWorkflowStepRunning(id);
-  renderAll();
   const payload = { confirm_current: true };
   const editForm = document.getElementById("editForm");
   if (includePatch && editForm) {
@@ -1051,6 +1049,8 @@ async function continueWorkflow(includePatch) {
       payload.patch = patch;
     }
   }
+  markCurrentWorkflowStepRunning(id);
+  renderAll();
   try {
     const data = await api(`/api/problems/${id}/workflow/continue`, {
       method: "POST",
