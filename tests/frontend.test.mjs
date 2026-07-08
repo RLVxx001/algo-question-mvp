@@ -930,6 +930,60 @@ test("finishing stale review keeps current problem review button disabled", asyn
   assert.equal(vm.runInContext("state.busy['review:prob_b']", context), true);
 });
 
+test("runReview switches to reports after successful review", async () => {
+  const context = loadAppContext();
+  const review = { problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] };
+
+  context.renderAll = () => {};
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/review");
+    assert.equal(options.method, "POST");
+    return { ok: true, json: async () => review };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runReview();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.activeTab", context), "reports");
+});
+
+test("runValidate switches to reports after successful validation", async () => {
+  const context = loadAppContext();
+  const validation = {
+    problem_id: "prob_a",
+    sample_passed: true,
+    fuzz_passed: true,
+    total_cases: 102,
+    failed_cases: [],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/validate");
+    assert.equal(options.method, "POST");
+    return { ok: true, json: async () => validation };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runValidate();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.validation", context)), validation);
+  assert.equal(vm.runInContext("state.activeTab", context), "reports");
+});
+
 test("runValidate stores review report from execution block", async () => {
   const context = loadAppContext();
   const review = {
@@ -966,6 +1020,50 @@ test("runValidate stores review report from execution block", async () => {
   assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
   assert.equal(context.isOperationBusy("validate:prob_a"), false);
+});
+
+test("runPackage switches to reports after successful export", async () => {
+  const context = loadAppContext();
+  const review = { problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] };
+  const validation = {
+    problem_id: "prob_a",
+    sample_passed: true,
+    fuzz_passed: true,
+    total_cases: 102,
+    failed_cases: [],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/package");
+    assert.equal(options.method, "POST");
+    return {
+      ok: true,
+      json: async () => ({
+        problem_id: "prob_a",
+        package_blocked: false,
+        package_dir: "data/packages/prob_a",
+        download_url: "/api/problems/prob_a/package/download",
+        review,
+        validation,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runPackage();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.package", context)), {
+    package_dir: "data/packages/prob_a",
+    download_url: "/api/problems/prob_a/package/download",
+  });
+  assert.equal(vm.runInContext("state.activeTab", context), "reports");
 });
 
 test("renderAll keeps selected problem action buttons disabled while operations are busy", () => {

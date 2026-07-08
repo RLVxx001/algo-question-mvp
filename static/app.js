@@ -306,11 +306,15 @@ function updateProblemReports(id, updates) {
   state.reruns = merged.reruns;
 }
 
+function showReportsTab() {
+  state.activeTab = "reports";
+  renderAll();
+}
+
 function storeBlockedReviewReport(id, payload) {
   if (!id || !payload?.review) return false;
   updateProblemReports(id, { review: payload.review });
-  state.activeTab = "reports";
-  renderAll();
+  showReportsTab();
   return true;
 }
 
@@ -998,10 +1002,7 @@ async function rerunFailedCase(index) {
       }),
     });
     state.reruns[`${problem.id}:${index}`] = data;
-    renderAll();
-    state.activeTab = "reports";
-    renderTabs();
-    renderDetail();
+    showReportsTab();
     log("复跑完成", `passed=${data.passed}`, data.passed ? "ok" : "bad");
   } catch (err) {
     if (storeBlockedReviewReport(problem.id, err.payload)) {
@@ -1323,7 +1324,7 @@ async function runReview() {
   try {
     const data = await api(`/api/problems/${id}/review`, { method: "POST", body: "{}" });
     updateProblemReports(id, { review: data });
-    renderAll();
+    showReportsTab();
     log("审查完成", `score=${data.score}, passed=${data.passed}`, data.passed ? "ok" : "warn");
   } catch (err) {
     log("审查失败", err.message, "bad");
@@ -1354,7 +1355,7 @@ async function runValidate() {
       body: JSON.stringify(options),
     });
     updateProblemReports(id, { validation: data });
-    renderAll();
+    showReportsTab();
     log("验证完成", `fuzz=${data.fuzz_passed}, cases=${data.total_cases}`, data.fuzz_passed ? "ok" : "bad");
   } catch (err) {
     if (storeBlockedReviewReport(id, err.payload)) {
@@ -1393,7 +1394,7 @@ async function runPackage() {
       validation: data.validation,
       package: { package_dir: data.package_dir, download_url: data.download_url },
     });
-    renderAll();
+    showReportsTab();
     log("导出完成", data.package_dir, "ok");
   } catch (err) {
     if (err.payload?.package_blocked) {
@@ -1405,8 +1406,7 @@ async function runPackage() {
           error: err.payload.error,
         },
       });
-      state.activeTab = "reports";
-      renderAll();
+      showReportsTab();
       log("导出被阻止", "审查或验证未通过，报告已更新。", "warn");
     } else {
       log("导出失败", err.message, "bad");
