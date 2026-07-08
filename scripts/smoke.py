@@ -4,6 +4,7 @@ import argparse
 import io
 import json
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 from typing import Any
@@ -41,6 +42,7 @@ def main() -> int:
     )["list"][0]
     _assert(zh_problem["statement_language"] == "zh", "default statement language is Chinese")
     _assert("给定" in zh_problem["statement"], "default mock statement is Chinese")
+    _assert_deleted(base_url, zh_problem["id"])
     results.append(f"default chinese ok: {zh_problem['id']}")
 
     workflow = _post_json(
@@ -74,6 +76,7 @@ def main() -> int:
     _assert(continued["problem"]["title"].endswith("（改）"), "workflow patch was saved")
     _assert(continued["problem"]["constraints"], "constraints generated after confirmation")
     _assert(continued["problem"]["reference_solution"], "reference solution generated after confirmation")
+    _assert_deleted(base_url, problem_id)
     results.append(f"workflow flow ok: {problem_id}")
 
     if args.include_llm:
@@ -150,6 +153,7 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
         names = set(archive.namelist())
     _assert("problem.md" in names, "package zip contains problem.md")
     _assert("validation_report.json" in names, "package zip contains validation report")
+    _assert_deleted(base_url, problem_id)
     return problem_id
 
 
@@ -165,6 +169,23 @@ def _get_text(url: str) -> str:
 def _get_bytes(url: str) -> tuple[bytes, Any]:
     with urllib.request.urlopen(url, timeout=20) as response:
         return response.read(), response.headers
+
+
+def _delete_json(url: str, timeout: int = 20) -> dict[str, Any]:
+    request = urllib.request.Request(url, method="DELETE")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _assert_deleted(base_url: str, problem_id: str) -> None:
+    deleted = _delete_json(f"{base_url}/api/problems/{problem_id}")
+    _assert(deleted["deleted"] is True, f"delete endpoint removed {problem_id}")
+    try:
+        _get_json(f"{base_url}/api/problems/{problem_id}")
+    except urllib.error.HTTPError as exc:
+        _assert(exc.code == 404, f"deleted problem returns 404 for {problem_id}")
+    else:
+        raise AssertionError(f"deleted problem is still readable: {problem_id}")
 
 
 def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:

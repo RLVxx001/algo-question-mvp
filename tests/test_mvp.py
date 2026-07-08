@@ -10,7 +10,9 @@ from app.exporter import create_problem_package_archive, export_problem_package
 from app.generator import generate_problem
 from app.models import GeneratedProblem, ProblemRequest
 from app.reviewer import review_problem
+from app.store import ProblemStore, WorkflowStore
 from app.validator import rerun_case, validate_problem
+from app.workflow import create_workflow
 
 
 class AlgorithmQuestionMVPTest(unittest.TestCase):
@@ -98,6 +100,63 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertGreater(len(body), 0)
             with zipfile.ZipFile(Path(tmp) / f"{problem.id}.zip") as archive:
                 self.assertIn("problem.md", archive.namelist())
+
+    def test_stores_can_delete_problem_and_workflow_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+
+            self.assertTrue(problem_store.delete(problem.id))
+            self.assertTrue(workflow_store.delete(problem.id))
+            self.assertFalse(problem_store.path_for(problem.id).exists())
+            self.assertFalse(workflow_store.path_for(problem.id).exists())
+            self.assertFalse(problem_store.delete(problem.id))
+            self.assertFalse(workflow_store.delete(problem.id))
+
+    def test_server_delete_problem_removes_problem_workflow_and_package_artifacts(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            package_root = root / "packages"
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+            package_dir = export_problem_package(problem, package_root, validation, review)
+            archive_path = create_problem_package_archive(problem.id, package_root)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.WORKFLOW_STORE", workflow_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._delete_problem(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            body = handler.wfile.write.call_args.args[0]
+            self.assertIn(b'"deleted": true', body)
+            self.assertFalse(problem_store.path_for(problem.id).exists())
+            self.assertFalse(workflow_store.path_for(problem.id).exists())
+            self.assertFalse(package_dir.exists())
+            self.assertFalse(archive_path.exists())
 
     def test_statement_language_defaults_to_chinese_and_can_use_english(self) -> None:
         zh_problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

@@ -253,6 +253,15 @@ select {
   cursor: not-allowed;
 }
 
+.danger-button {
+  border-color: #fecaca;
+  color: var(--bad);
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #fff5f5;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;

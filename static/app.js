@@ -20,6 +20,7 @@ const els = {
   reviewButton: document.getElementById("reviewButton"),
   validateButton: document.getElementById("validateButton"),
   packageButton: document.getElementById("packageButton"),
+  deleteButton: document.getElementById("deleteButton"),
   roundsInput: document.getElementById("roundsInput"),
   timeoutInput: document.getElementById("timeoutInput"),
   problemSearchInput: document.getElementById("problemSearchInput"),
@@ -179,6 +180,7 @@ function renderAll() {
   els.reviewButton.disabled = !hasProblem;
   els.validateButton.disabled = !hasProblem;
   els.packageButton.disabled = !hasProblem;
+  els.deleteButton.disabled = !hasProblem;
   renderMetrics();
   renderProblemList();
   renderTabs();
@@ -789,6 +791,30 @@ async function runPackage() {
   }
 }
 
+async function deleteSelectedProblem() {
+  const problem = state.selected;
+  if (!problem) return;
+  const confirmed = window.confirm(`删除题目「${problem.title}」？导出目录和 ZIP 也会一起删除。`);
+  if (!confirmed) return;
+  setBusy(els.deleteButton, true, "删除中");
+  try {
+    const data = await api(`/api/problems/${problem.id}`, { method: "DELETE" });
+    delete state.reports[problem.id];
+    delete state.workflows[problem.id];
+    Object.keys(state.reruns)
+      .filter((key) => key.startsWith(`${problem.id}:`))
+      .forEach((key) => delete state.reruns[key]);
+    state.selected = null;
+    await loadProblems(false);
+    renderAll();
+    log("题目已删除", `${data.problem_id} / package=${data.removed_package}`, "ok");
+  } catch (err) {
+    log("删除失败", err.message, "bad");
+  } finally {
+    setBusy(els.deleteButton, false, "");
+  }
+}
+
 function bindEvents() {
   els.generateForm.addEventListener("submit", handleGenerate);
   els.refreshButton.addEventListener("click", () => loadProblems(false));
@@ -799,6 +825,7 @@ function bindEvents() {
   els.reviewButton.addEventListener("click", runReview);
   els.validateButton.addEventListener("click", runValidate);
   els.packageButton.addEventListener("click", runPackage);
+  els.deleteButton.addEventListener("click", deleteSelectedProblem);
   els.clearLogButton.addEventListener("click", () => {
     els.activityLog.innerHTML = "";
   });

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import shutil
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -93,6 +94,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/package"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/package")
             self._package(problem_id)
+            return
+        self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/problems/"):
+            problem_id = parsed.path.removeprefix("/api/problems/")
+            self._delete_problem(problem_id)
             return
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -300,6 +309,25 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
+    def _delete_problem(self, problem_id: str) -> None:
+        try:
+            STORE.get(problem_id)
+            STORE.delete(problem_id)
+            WORKFLOW_STORE.delete(problem_id)
+            removed_package = _remove_package_artifacts(problem_id)
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "problem_id": problem_id,
+                    "deleted": True,
+                    "removed_package": removed_package,
+                },
+            )
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
     def _read_json(self, default: dict | None = None) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length == 0:
@@ -358,6 +386,20 @@ def _package_info(problem_id: str, package_dir: Path) -> dict:
 
 def _package_download_url(problem_id: str) -> str:
     return f"/api/problems/{problem_id}/package/download"
+
+
+def _remove_package_artifacts(problem_id: str) -> bool:
+    package_dir = (PACKAGE_ROOT / problem_id).resolve()
+    archive_path = (PACKAGE_ROOT / f"{problem_id}.zip").resolve()
+    root_path = PACKAGE_ROOT.resolve()
+    removed = False
+    if str(package_dir).startswith(str(root_path)) and package_dir.is_dir():
+        shutil.rmtree(package_dir)
+        removed = True
+    if str(archive_path).startswith(str(root_path)) and archive_path.exists():
+        archive_path.unlink()
+        removed = True
+    return removed
 
 
 def _problem_request_from_body(body: dict) -> ProblemRequest:

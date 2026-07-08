@@ -7,11 +7,12 @@
 - 暴力解
 - 测试数据生成器
 - 自动样例校验与随机对拍
+- 导出目录和可下载 ZIP
 
 ## 启动
 
 ```bash
-cd /Users/a123/Desktop/tool/wurenji/algo-question-mvp
+cd /Users/a123/Desktop/学校相关项目/algo-question-mvp
 python3 -m app.server
 ```
 
@@ -97,11 +98,32 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/package \
 data/packages/<problem_id>/
 ```
 
+下载 ZIP：
+
+```bash
+curl -L -o "<problem_id>.zip" \
+  http://127.0.0.1:18081/api/problems/<problem_id>/package/download
+```
+
+## 删除题目
+
+```bash
+curl -sS -X DELETE http://127.0.0.1:18081/api/problems/<problem_id>
+```
+
+会同步删除题目 JSON、流程记录、导出目录和 ZIP。
+
 ## 本地测试
 
 ```bash
 make compile
 make test
+```
+
+服务启动后可以跑 HTTP 主流程 smoke。smoke 会验证生成、审查、对拍、导出、ZIP 下载和删除清理：
+
+```bash
+python3 -m scripts.smoke --base-url http://127.0.0.1:18081
 ```
 
 ## MVP 边界

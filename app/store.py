@@ -27,6 +27,13 @@ class ProblemStore:
             problems.append(GeneratedProblem.from_dict(json.loads(path.read_text(encoding="utf-8"))))
         return problems
 
+    def delete(self, problem_id: str) -> bool:
+        path = self.path_for(problem_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def path_for(self, problem_id: str) -> Path:
         safe_id = "".join(ch for ch in problem_id if ch.isalnum() or ch in "-_")
         return self.root / f"{safe_id}.json"
@@ -48,6 +55,13 @@ class WorkflowStore:
         if not path.exists():
             raise KeyError(problem_id)
         return ProblemWorkflow.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def delete(self, problem_id: str) -> bool:
+        path = self.path_for(problem_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
 
     def path_for(self, problem_id: str) -> Path:
         safe_id = "".join(ch for ch in problem_id if ch.isalnum() or ch in "-_")

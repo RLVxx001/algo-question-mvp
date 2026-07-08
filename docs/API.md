@@ -65,6 +65,29 @@ GET /api/problems
 GET /api/problems/{problem_id}
 ```
 
+## 删除题目
+
+```http
+DELETE /api/problems/{problem_id}
+```
+
+删除内容：
+
+- `data/problems/{problem_id}.json`
+- `data/workflows/{problem_id}.json`，如果存在
+- `data/packages/{problem_id}/`，如果存在
+- `data/packages/{problem_id}.zip`，如果存在
+
+响应：
+
+```json
+{
+  "problem_id": "prob_x",
+  "deleted": true,
+  "removed_package": true
+}
+```
+
 ## 查看已有报告
 
 ```http

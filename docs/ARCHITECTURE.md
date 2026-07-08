@@ -24,6 +24,7 @@ HTTP API
        -> local template fallback
   -> store
        -> JSON problem persistence
+       -> problem/workflow cleanup
   -> reviewer
        -> required fields
        -> sample shape
@@ -46,7 +47,7 @@ HTTP API
 - `app/reviewer.py`: 静态质量审查
 - `app/validator.py`: 对拍验证
 - `app/exporter.py`: 题目包目录导出和 ZIP 归档
-- `app/store.py`: 题目 JSON 存储
+- `app/store.py`: 题目和流程 JSON 存储/删除
 - `static/index.html`: 前端工作台入口
 - `static/styles.css`: 前端样式
 - `static/app.js`: 前端交互和 API 调用
