@@ -326,6 +326,75 @@ test("loadProblems logs list failures and preserves existing problems", async ()
   assert.deepEqual(logs, [{ title: "题目列表读取失败", message: "store unavailable", level: "warn" }]);
 });
 
+test("selectProblem removes missing problem from list without throwing", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  let renderCount = 0;
+  const problems = [
+    {
+      id: "prob_missing",
+      title: "Missing",
+      topic: "array",
+      difficulty: "easy",
+      source: "mock",
+      statement_language: "zh",
+      tags: ["array"],
+    },
+    {
+      id: "prob_kept",
+      title: "Kept",
+      topic: "graph",
+      difficulty: "medium",
+      source: "mock",
+      statement_language: "zh",
+      tags: ["graph"],
+    },
+  ];
+
+  context.fetch = async () => ({
+    ok: false,
+    status: 404,
+    json: async () => ({ error: "problem not found" }),
+  });
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  context.renderAll = () => {
+    renderCount += 1;
+  };
+  vm.runInContext(
+    `
+      state.problems = ${JSON.stringify(problems)};
+      state.selected = ${JSON.stringify(problems[0])};
+      state.reports.prob_missing = { review: { passed: true } };
+      state.workflows.prob_missing = { status: "waiting_user" };
+      state.similarity.prob_missing = { has_risk: false };
+      state.reruns["prob_missing:0"] = { passed: true };
+    `,
+    context,
+  );
+
+  await assert.doesNotReject(() => context.selectProblem("prob_missing"));
+
+  assert.deepEqual(
+    plain(vm.runInContext("state.problems.map((problem) => problem.id)", context)),
+    ["prob_kept"],
+  );
+  assert.equal(vm.runInContext("state.selected", context), null);
+  assert.equal(vm.runInContext("'prob_missing' in state.reports", context), false);
+  assert.equal(vm.runInContext("'prob_missing' in state.workflows", context), false);
+  assert.equal(vm.runInContext("'prob_missing' in state.similarity", context), false);
+  assert.equal(vm.runInContext("'prob_missing:0' in state.reruns", context), false);
+  assert.equal(renderCount, 1);
+  assert.deepEqual(logs, [
+    {
+      title: "题目不存在",
+      message: "列表中的题目已不存在或无法读取，已从当前列表移除。",
+      level: "warn",
+    },
+  ]);
+});
+
 test("runReview ignores duplicate clicks while request is in flight", async () => {
   const context = loadAppContext();
   let resolveReview;

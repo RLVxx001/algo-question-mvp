@@ -156,16 +156,38 @@ async function loadProblems(selectLatest = false) {
   }
 }
 
-async function selectProblem(id) {
-  const problem = await api(`/api/problems/${id}`);
-  state.selected = problem;
-  state.activeTab = "statement";
-  state.reports[id] = state.reports[id] || {};
-  await loadStoredReports(id);
-  await loadSimilarity(id);
-  await loadWorkflow(id);
+function forgetProblem(id) {
+  state.problems = state.problems.filter((problem) => problem.id !== id);
+  delete state.reports[id];
+  delete state.workflows[id];
+  delete state.similarity[id];
+  clearRerunsForProblem(id);
+  if (state.selected?.id === id) {
+    state.selected = null;
+    state.activeTab = "statement";
+  }
   renderAll();
-  log("已选择题目", `${problem.title} (${problem.source})`, "ok");
+}
+
+async function selectProblem(id) {
+  try {
+    const problem = await api(`/api/problems/${id}`);
+    state.selected = problem;
+    state.activeTab = "statement";
+    state.reports[id] = state.reports[id] || {};
+    await loadStoredReports(id);
+    await loadSimilarity(id);
+    await loadWorkflow(id);
+    renderAll();
+    log("已选择题目", `${problem.title} (${problem.source})`, "ok");
+  } catch (err) {
+    if (err.status === 404) {
+      forgetProblem(id);
+      log("题目不存在", "列表中的题目已不存在或无法读取，已从当前列表移除。", "warn");
+      return;
+    }
+    log("题目读取失败", err.message, "warn");
+  }
 }
 
 async function loadWorkflow(id) {
