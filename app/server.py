@@ -589,7 +589,9 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
 def _parse_topic(value: object) -> str:
     if value is None:
         raise ValueError("topic is required")
-    topic = str(value).strip()
+    if not isinstance(value, str):
+        raise ValueError("topic must be a string")
+    topic = value.strip()
     if not topic:
         raise ValueError("topic is required")
     return topic

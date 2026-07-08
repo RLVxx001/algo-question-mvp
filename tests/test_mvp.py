@@ -825,6 +825,31 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertEqual(payload["error"], "count must be an integer")
             self.assertEqual(problem_store.list(), [])
 
+    def test_server_generate_rejects_non_string_topic_without_saving_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "topic": ["array"],
+                "count": 1,
+                "use_llm": False,
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._generate()
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "topic must be a string")
+            self.assertEqual(problem_store.list(), [])
+
     def test_server_validate_rejects_fractional_rounds_without_saving_report(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
