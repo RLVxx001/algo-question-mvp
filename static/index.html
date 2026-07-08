@@ -70,6 +70,27 @@
           </button>
         </form>
 
+        <section class="panel runtime-panel">
+          <div class="panel-heading">
+            <h2>运行状态</h2>
+            <span id="runtimeModeText" class="status-pill">读取中</span>
+          </div>
+          <div class="runtime-grid">
+            <div>
+              <span>模型</span>
+              <strong id="runtimeModelText">-</strong>
+            </div>
+            <div>
+              <span>接口</span>
+              <strong id="runtimeEndpointText">-</strong>
+            </div>
+            <div>
+              <span>限制</span>
+              <strong id="runtimeLimitsText">-</strong>
+            </div>
+          </div>
+        </section>
+
         <section class="panel list-panel">
           <div class="panel-heading">
             <h2>题目列表</h2>
@@ -136,6 +157,10 @@
           <div class="metric">
             <span>语言</span>
             <strong id="languageMetric">-</strong>
+          </div>
+          <div class="metric">
+            <span>模型</span>
+            <strong id="llmMetric">-</strong>
           </div>
           <div class="metric">
             <span>审查</span>

@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.exporter import create_problem_package_archive, export_problem_package
-from app.generator import create_problem_draft, generate_problem
+from app.generator import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.reviewer import review_problem
 from app.store import ProblemStore, ReportStore, WorkflowStore
@@ -24,6 +24,13 @@ WORKFLOW_STORE = WorkflowStore(ROOT / "data" / "workflows")
 REPORT_STORE = ReportStore(ROOT / "data" / "reports")
 PACKAGE_ROOT = ROOT / "data" / "packages"
 STATIC_ROOT = ROOT / "static"
+DEFAULT_GENERATION_COUNT = 1
+MAX_GENERATION_COUNT = 5
+DEFAULT_VALIDATION_ROUNDS = 100
+MAX_VALIDATION_ROUNDS = 1000
+DEFAULT_TIMEOUT_SECONDS = 2.0
+MIN_TIMEOUT_SECONDS = 0.2
+MAX_TIMEOUT_SECONDS = 10.0
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -39,6 +46,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/healthz":
             self._json(HTTPStatus.OK, {"ok": True})
+            return
+        if parsed.path == "/api/runtime":
+            self._runtime()
             return
         if parsed.path == "/api/problems":
             self._json(HTTPStatus.OK, {"list": [_summary(p) for p in STORE.list()]})
@@ -110,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = self._read_json()
             req = _problem_request_from_body(body)
-            count = max(1, min(req.count, 5))
+            count = max(1, min(req.count, MAX_GENERATION_COUNT))
             problems = []
             for _ in range(count):
                 problem = generate_problem(req)
@@ -119,6 +129,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {"list": problems})
         except Exception as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+
+    def _runtime(self) -> None:
+        self._json(HTTPStatus.OK, _runtime_info())
 
     def _start_workflow(self) -> None:
         try:
@@ -216,8 +229,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
-            rounds = _clamp_rounds(body.get("rounds", 100))
-            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            rounds = _clamp_rounds(body.get("rounds", DEFAULT_VALIDATION_ROUNDS))
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             report = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             payload = report.to_dict()
             REPORT_STORE.save_validation(problem_id, payload)
@@ -237,7 +250,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(case_input, str) or not case_input:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "input is required"})
                 return
-            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             self._json(HTTPStatus.OK, rerun_case(problem, case_input, timeout_seconds).to_dict())
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
@@ -283,8 +296,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
-            rounds = _clamp_rounds(body.get("rounds", 100))
-            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            rounds = _clamp_rounds(body.get("rounds", DEFAULT_VALIDATION_ROUNDS))
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             review = review_problem(problem)
             package_dir = export_problem_package(problem, PACKAGE_ROOT, validation, review)
@@ -388,6 +401,39 @@ def _summary(problem) -> dict:
     }
 
 
+def _runtime_info() -> dict:
+    llm_configured = bool(os.getenv("ALGO_LLM_API_KEY"))
+    return {
+        "ok": True,
+        "server": {
+            "host": os.getenv("ALGO_HOST", "127.0.0.1"),
+            "port": int(os.getenv("ALGO_PORT", "18081")),
+        },
+        "llm": {
+            "configured": llm_configured,
+            "active_mode": "llm" if llm_configured else "template",
+            "base_url": os.getenv("ALGO_LLM_BASE_URL", DEFAULT_LLM_BASE_URL).rstrip("/"),
+            "model": os.getenv("ALGO_LLM_MODEL", DEFAULT_LLM_MODEL),
+            "fallback_source": "mock",
+            "failure_fallback_source": "mock-after-llm-failure",
+            "language_fallback_source": "mock-after-language-mismatch",
+        },
+        "generation": {
+            "default_count": DEFAULT_GENERATION_COUNT,
+            "max_count": MAX_GENERATION_COUNT,
+            "supported_statement_languages": ["zh", "en"],
+            "default_statement_language": "zh",
+        },
+        "validation": {
+            "default_rounds": DEFAULT_VALIDATION_ROUNDS,
+            "max_rounds": MAX_VALIDATION_ROUNDS,
+            "default_timeout_seconds": DEFAULT_TIMEOUT_SECONDS,
+            "min_timeout_seconds": MIN_TIMEOUT_SECONDS,
+            "max_timeout_seconds": MAX_TIMEOUT_SECONDS,
+        },
+    }
+
+
 def _read_json_file(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -441,17 +487,17 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
         difficulty=str(body.get("difficulty", "easy")),
         language=str(body.get("language", "python")),
         statement_language=str(body.get("statement_language", body.get("natural_language", "zh"))),
-        count=int(body.get("count", 1)),
+        count=int(body.get("count", DEFAULT_GENERATION_COUNT)),
         use_llm=bool(body.get("use_llm", True)),
     )
 
 
 def _clamp_rounds(value: object) -> int:
-    return max(1, min(int(value), 1000))
+    return max(1, min(int(value), MAX_VALIDATION_ROUNDS))
 
 
 def _clamp_timeout(value: object) -> float:
-    return max(0.2, min(float(value), 10.0))
+    return max(MIN_TIMEOUT_SECONDS, min(float(value), MAX_TIMEOUT_SECONDS))
 
 
 def _public_workflow_result(result: dict) -> dict:

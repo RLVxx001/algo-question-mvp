@@ -102,6 +102,52 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             with zipfile.ZipFile(Path(tmp) / f"{problem.id}.zip") as archive:
                 self.assertIn("problem.md", archive.namelist())
 
+    def test_runtime_endpoint_reports_llm_configuration_without_secret(self) -> None:
+        from app.server import Handler
+
+        handler = object.__new__(Handler)
+        handler.wfile = Mock()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        with patch.dict(
+            "os.environ",
+            {
+                "ALGO_LLM_API_KEY": "secret-value",
+                "ALGO_LLM_BASE_URL": "http://llm.local:8318",
+                "ALGO_LLM_MODEL": "model-x",
+            },
+            clear=False,
+        ):
+            handler._runtime()
+
+        handler.send_response.assert_called_once_with(200)
+        payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+        self.assertTrue(payload["llm"]["configured"])
+        self.assertEqual(payload["llm"]["base_url"], "http://llm.local:8318")
+        self.assertEqual(payload["llm"]["model"], "model-x")
+        self.assertNotIn("secret-value", json.dumps(payload))
+        self.assertEqual(payload["generation"]["max_count"], 5)
+        self.assertEqual(payload["validation"]["max_rounds"], 1000)
+
+    def test_runtime_endpoint_marks_missing_llm_as_template_fallback(self) -> None:
+        from app.server import Handler
+
+        handler = object.__new__(Handler)
+        handler.wfile = Mock()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        with patch.dict("os.environ", {"ALGO_LLM_API_KEY": ""}, clear=False):
+            handler._runtime()
+
+        payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+        self.assertFalse(payload["llm"]["configured"])
+        self.assertEqual(payload["llm"]["active_mode"], "template")
+        self.assertEqual(payload["llm"]["fallback_source"], "mock")
+
     def test_stores_can_delete_problem_and_workflow_files(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))

@@ -23,8 +23,18 @@ def main() -> int:
     _assert(health.get("ok") is True, "healthz returned ok")
     results.append("healthz ok")
 
+    runtime = _get_json(f"{base_url}/api/runtime")
+    _assert(runtime.get("ok") is True, "runtime endpoint returned ok")
+    _assert(isinstance(runtime.get("llm"), dict), "runtime endpoint includes llm block")
+    _assert("configured" in runtime["llm"], "runtime llm block includes configured flag")
+    _assert("api_key" not in json.dumps(runtime).lower(), "runtime endpoint does not expose api key")
+    _assert(runtime["generation"]["max_count"] == 5, "runtime generation max count is exposed")
+    _assert(runtime["validation"]["max_rounds"] == 1000, "runtime validation max rounds is exposed")
+    results.append("runtime ok")
+
     index_html = _get_text(f"{base_url}/")
     _assert("算法出题工作台" in index_html, "frontend index contains title")
+    _assert("运行状态" in index_html, "frontend index contains runtime status panel")
     results.append("frontend index ok")
 
     mock_problem_id = _run_problem_flow(base_url, use_llm=False, topic="string", rounds=30)

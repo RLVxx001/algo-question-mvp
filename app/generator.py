@@ -21,6 +21,9 @@ generator_code must accept one integer seed as argv[1] and print one valid test 
 The reference and brute force solutions must produce identical output for every valid input.
 """
 
+DEFAULT_LLM_BASE_URL = "http://8.138.45.45:8318"
+DEFAULT_LLM_MODEL = "gpt-5.5"
+
 
 def generate_problem(req: ProblemRequest) -> GeneratedProblem:
     req.statement_language = _normalize_statement_language(req.statement_language)
@@ -72,9 +75,9 @@ def generate_workflow_stage(problem: GeneratedProblem, req: ProblemRequest, stag
 
 
 def _generate_with_llm(req: ProblemRequest) -> GeneratedProblem:
-    base_url = os.getenv("ALGO_LLM_BASE_URL", "http://8.138.45.45:8318").rstrip("/")
+    base_url = os.getenv("ALGO_LLM_BASE_URL", DEFAULT_LLM_BASE_URL).rstrip("/")
     api_key = os.getenv("ALGO_LLM_API_KEY", "")
-    model = os.getenv("ALGO_LLM_MODEL", "gpt-5.5")
+    model = os.getenv("ALGO_LLM_MODEL", DEFAULT_LLM_MODEL)
     human_language = "Simplified Chinese" if req.statement_language == "zh" else "English"
 
     user_prompt = f"""Generate one algorithm problem package.
@@ -124,9 +127,9 @@ Quality rules:
 
 
 def _generate_stage_with_llm(problem: GeneratedProblem, req: ProblemRequest, stage: str) -> GeneratedProblem:
-    base_url = os.getenv("ALGO_LLM_BASE_URL", "http://8.138.45.45:8318").rstrip("/")
+    base_url = os.getenv("ALGO_LLM_BASE_URL", DEFAULT_LLM_BASE_URL).rstrip("/")
     api_key = os.getenv("ALGO_LLM_API_KEY", "")
-    model = os.getenv("ALGO_LLM_MODEL", "gpt-5.5")
+    model = os.getenv("ALGO_LLM_MODEL", DEFAULT_LLM_MODEL)
     human_language = "Simplified Chinese" if req.statement_language == "zh" else "English"
     stage_fields = {
         "idea": "title, tags, solution_explanation",

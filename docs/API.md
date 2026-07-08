@@ -26,6 +26,28 @@ GET /healthz
 {"ok": true}
 ```
 
+## 运行状态
+
+```http
+GET /api/runtime
+```
+
+返回服务运行参数、LLM 是否已配置、当前模型名、生成数量上限和验证上限。响应不会返回 `ALGO_LLM_API_KEY`。
+
+```json
+{
+  "ok": true,
+  "llm": {
+    "configured": false,
+    "active_mode": "template",
+    "model": "gpt-5.5",
+    "fallback_source": "mock"
+  },
+  "generation": {"max_count": 5},
+  "validation": {"max_rounds": 1000}
+}
+```
+
 ## 生成题目
 
 ```http

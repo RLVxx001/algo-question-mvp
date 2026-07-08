@@ -5,6 +5,7 @@ const state = {
   reports: {},
   workflows: {},
   reruns: {},
+  runtime: null,
 };
 
 const els = {
@@ -28,9 +29,14 @@ const els = {
   languageFilter: document.getElementById("languageFilter"),
   sourceMetric: document.getElementById("sourceMetric"),
   languageMetric: document.getElementById("languageMetric"),
+  llmMetric: document.getElementById("llmMetric"),
   reviewMetric: document.getElementById("reviewMetric"),
   validateMetric: document.getElementById("validateMetric"),
   packageMetric: document.getElementById("packageMetric"),
+  runtimeModeText: document.getElementById("runtimeModeText"),
+  runtimeModelText: document.getElementById("runtimeModelText"),
+  runtimeEndpointText: document.getElementById("runtimeEndpointText"),
+  runtimeLimitsText: document.getElementById("runtimeLimitsText"),
   detailContent: document.getElementById("detailContent"),
   activityLog: document.getElementById("activityLog"),
   clearLogButton: document.getElementById("clearLogButton"),
@@ -77,6 +83,39 @@ async function checkHealth() {
     els.healthText.textContent = "连接失败";
     els.healthText.className = "bad";
   }
+}
+
+async function loadRuntime() {
+  try {
+    state.runtime = await api("/api/runtime");
+    renderRuntime();
+  } catch (err) {
+    state.runtime = null;
+    renderRuntime();
+    log("运行状态读取失败", err.message, "warn");
+  }
+}
+
+function renderRuntime() {
+  const runtime = state.runtime;
+  if (!runtime) {
+    els.runtimeModeText.textContent = "未知";
+    els.runtimeModeText.className = "status-pill failed";
+    els.runtimeModelText.textContent = "-";
+    els.runtimeEndpointText.textContent = "-";
+    els.runtimeLimitsText.textContent = "-";
+    return;
+  }
+  const llm = runtime.llm || {};
+  const validation = runtime.validation || {};
+  const generation = runtime.generation || {};
+  const isLlm = llm.active_mode === "llm";
+  els.runtimeModeText.textContent = isLlm ? "LLM" : "模板";
+  els.runtimeModeText.className = `status-pill ${isLlm ? "completed" : "running"}`;
+  els.runtimeModelText.textContent = llm.model || "-";
+  els.runtimeEndpointText.textContent = llm.base_url || "-";
+  els.runtimeLimitsText.textContent = `最多 ${generation.max_count ?? "-"} 题 / ${validation.max_rounds ?? "-"} 轮`;
+  els.llmMetric.textContent = runtimeModeLabel(llm);
 }
 
 async function loadProblems(selectLatest = false) {
@@ -181,6 +220,7 @@ function renderAll() {
   els.validateButton.disabled = !hasProblem;
   els.packageButton.disabled = !hasProblem;
   els.deleteButton.disabled = !hasProblem;
+  els.llmMetric.textContent = runtimeModeLabel(state.runtime?.llm);
   renderMetrics();
   renderProblemList();
   renderTabs();
@@ -211,6 +251,11 @@ function languageLabel(language) {
   if (language === "en") return "English";
   if (language === "zh") return "中文";
   return "-";
+}
+
+function runtimeModeLabel(llm) {
+  if (!llm) return "-";
+  return llm.active_mode === "llm" ? `LLM / ${llm.model || "-"}` : "模板兜底";
 }
 
 function renderTabs() {
@@ -936,6 +981,7 @@ function bindEvents() {
 async function init() {
   bindEvents();
   await checkHealth();
+  await loadRuntime();
   await loadProblems(false);
   log("工作台就绪", window.location.origin, "ok");
 }
