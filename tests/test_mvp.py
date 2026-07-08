@@ -461,6 +461,51 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(result["reports"]["review"]["passed"])
             self.assertFalse((package_root / problem.id).exists())
 
+    def test_create_workflow_rejects_unknown_manual_steps(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with self.assertRaisesRegex(ValueError, "manual_steps contains unsupported step: unknown"):
+            create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement", "unknown"])
+
+    def test_create_workflow_rejects_non_interactive_manual_steps(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with self.assertRaisesRegex(ValueError, "manual_steps contains unsupported step: package"):
+            create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["package"])
+
+    def test_create_workflow_respects_empty_manual_steps(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+
+        self.assertTrue(all(step.mode == "auto" for step in workflow.steps))
+
+    def test_server_workflow_rejects_unknown_manual_steps_without_saving_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "topic": "array",
+                "use_llm": False,
+                "manual_steps": ["unknown"],
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._start_workflow()
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "manual_steps contains unsupported step: unknown")
+            self.assertEqual(problem_store.list(), [])
+
     def test_server_edit_invalidates_reports_and_package_artifacts(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)

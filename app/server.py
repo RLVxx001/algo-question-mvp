@@ -146,7 +146,6 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(manual_steps, list):
                 manual_steps = ["statement"]
             problem = create_problem_draft(req)
-            STORE.save(problem)
             workflow = create_workflow(problem, req, [str(step) for step in manual_steps])
             workflow, result = advance_workflow(workflow, problem, PACKAGE_ROOT)
             problem = result.get("problem", problem)

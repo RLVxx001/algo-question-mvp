@@ -136,6 +136,35 @@ def main() -> int:
     else:
         raise AssertionError("unsupported statement language unexpectedly succeeded")
 
+    problem_count_before_invalid_workflow = len(_get_json(f"{base_url}/api/problems").get("list") or [])
+    try:
+        _post_json(
+            f"{base_url}/api/workflows/start",
+            {
+                "topic": "array",
+                "difficulty": "easy",
+                "count": 1,
+                "use_llm": False,
+                "manual_steps": ["unknown"],
+            },
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "unsupported manual workflow step returns 400")
+        _assert(
+            body["error"] == "manual_steps contains unsupported step: unknown",
+            "unsupported manual workflow step has clear error",
+        )
+    else:
+        raise AssertionError("unsupported manual workflow step unexpectedly succeeded")
+    problem_count_after_invalid_workflow = len(_get_json(f"{base_url}/api/problems").get("list") or [])
+    _assert(
+        problem_count_after_invalid_workflow == problem_count_before_invalid_workflow,
+        "invalid workflow manual steps do not save a draft problem",
+    )
+    results.append("manual step validation ok")
+
     workflow = _post_json(
         f"{base_url}/api/workflows/start",
         {
