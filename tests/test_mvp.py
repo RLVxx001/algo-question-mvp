@@ -1142,6 +1142,40 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(result["reports"]["review"]["passed"])
             self.assertFalse((package_root / problem.id).exists())
 
+    def test_workflow_package_step_unlinks_stale_package_symlinks_on_failure(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "print(0)\n"
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key != "package":
+                step.status = "completed"
+        workflow.current_step = "package"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+            outside_package = root / "outside_package"
+            outside_package.mkdir()
+            (outside_package / "problem.md").write_text("external", encoding="utf-8")
+            outside_archive = root / "outside.zip"
+            outside_archive.write_text("external zip", encoding="utf-8")
+            package_link = package_root / problem.id
+            archive_link = package_root / f"{problem.id}.zip"
+            package_link.symlink_to(outside_package, target_is_directory=True)
+            archive_link.symlink_to(outside_archive)
+
+            workflow, result = advance_workflow(workflow, problem, package_root)
+
+            self.assertEqual(workflow.status, "failed")
+            self.assertTrue(result["reports"]["package"]["package_blocked"])
+            self.assertFalse(package_link.exists())
+            self.assertFalse(archive_link.exists())
+            self.assertTrue(outside_package.exists())
+            self.assertTrue((outside_package / "problem.md").exists())
+            self.assertTrue(outside_archive.exists())
+            self.assertEqual(outside_archive.read_text(encoding="utf-8"), "external zip")
+
     def test_workflow_package_step_rejects_failed_review_without_exporting(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.samples = []

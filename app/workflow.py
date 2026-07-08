@@ -307,9 +307,21 @@ def _now() -> str:
 
 def _remove_package_artifacts(package_root, problem_id: str) -> None:
     root = Path(package_root)
+    raw_package_dir = _package_root_child(root, problem_id)
+    raw_archive_path = _package_root_child(root, f"{problem_id}.zip")
     package_dir = resolve_under(root, problem_id)
     archive_path = resolve_under(root, f"{problem_id}.zip")
-    if package_dir is not None and package_dir.is_dir():
+    if raw_package_dir is not None and raw_package_dir.is_symlink():
+        raw_package_dir.unlink()
+    elif package_dir is not None and package_dir.is_dir():
         shutil.rmtree(package_dir)
-    if archive_path is not None and archive_path.exists():
+    if raw_archive_path is not None and raw_archive_path.is_symlink():
+        raw_archive_path.unlink()
+    elif archive_path is not None and archive_path.exists():
         archive_path.unlink()
+
+
+def _package_root_child(root: Path, name: str) -> Path | None:
+    if not name or "/" in name or "\\" in name or name in {".", ".."}:
+        return None
+    return root / name
