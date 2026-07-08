@@ -325,11 +325,15 @@ function renderProblemList() {
     return;
   }
   const problems = filteredProblems();
+  const selectedHidden = selectedProblemHiddenByFilters(problems);
+  const hiddenNotice = selectedHidden
+    ? `<div class="filter-notice">当前详情已被筛选隐藏，清空筛选后可在列表中看到。</div>`
+    : "";
   if (!problems.length) {
-    els.problemList.innerHTML = `<div class="empty-state"><p>没有匹配的题目</p></div>`;
+    els.problemList.innerHTML = `${hiddenNotice}<div class="empty-state"><p>没有匹配的题目</p></div>`;
     return;
   }
-  els.problemList.innerHTML = problems
+  const rows = problems
     .map((problem) => {
       const active = state.selected?.id === problem.id ? " active" : "";
       return `
@@ -345,6 +349,7 @@ function renderProblemList() {
       `;
     })
     .join("");
+  els.problemList.innerHTML = `${hiddenNotice}${rows}`;
 }
 
 function filteredProblems() {
@@ -367,6 +372,14 @@ function filteredProblems() {
     const languageMatches = language === "all" || problem.statement_language === language;
     return (!keyword || haystack.includes(keyword)) && sourceMatches && languageMatches;
   });
+}
+
+function selectedProblemHiddenByFilters(filtered) {
+  const selectedId = state.selected?.id;
+  if (!selectedId) return false;
+  const selectedExists = state.problems.some((problem) => problem.id === selectedId);
+  const selectedVisible = filtered.some((problem) => problem.id === selectedId);
+  return selectedExists && !selectedVisible;
 }
 
 function renderAll() {

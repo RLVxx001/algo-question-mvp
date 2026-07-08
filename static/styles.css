@@ -344,6 +344,16 @@ select {
   overflow: auto;
 }
 
+.filter-notice {
+  border: 1px solid #b7dbe2;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #eff8fa;
+  color: #27616c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .problem-item {
   display: grid;
   gap: 5px;

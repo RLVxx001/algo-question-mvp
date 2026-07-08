@@ -441,6 +441,43 @@ test("refreshProblems disables refresh button and ignores duplicate refreshes", 
   assert.equal(context.isOperationBusy("refresh"), false);
 });
 
+test("renderProblemList warns when filters hide the selected problem", () => {
+  const context = loadAppContext();
+  const selected = {
+    id: "prob_selected",
+    title: "Hidden Array",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+  const visible = {
+    id: "prob_visible",
+    title: "Visible Graph",
+    topic: "graph",
+    difficulty: "medium",
+    source: "llm",
+    statement_language: "en",
+    tags: ["graph"],
+  };
+
+  context.__elements.problemSearchInput.value = "graph";
+  vm.runInContext(
+    `
+      state.problems = ${JSON.stringify([selected, visible])};
+      state.selected = ${JSON.stringify(selected)};
+    `,
+    context,
+  );
+
+  context.renderProblemList();
+
+  assert.match(context.__elements.problemList.innerHTML, /当前详情已被筛选隐藏/);
+  assert.match(context.__elements.problemList.innerHTML, /Visible Graph/);
+  assert.doesNotMatch(context.__elements.problemList.innerHTML, /Hidden Array/);
+});
+
 test("loadWorkflow logs non-404 failures but ignores missing workflow records", async () => {
   const context = loadAppContext();
   const logs = [];
