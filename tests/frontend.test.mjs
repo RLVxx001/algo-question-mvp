@@ -854,6 +854,43 @@ test("runReview ignores duplicate clicks while request is in flight", async () =
   assert.equal(context.isOperationBusy("review:prob_a"), false);
 });
 
+test("finishing stale review keeps current problem review button disabled", async () => {
+  const context = loadAppContext();
+  let resolveReview;
+  const reviewResponse = new Promise((resolve) => {
+    resolveReview = resolve;
+  });
+
+  context.fetch = async () => {
+    await reviewResponse;
+    return {
+      ok: true,
+      json: async () => ({ problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "reports";
+    `,
+    context,
+  );
+
+  const pending = context.runReview();
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_b", title: "Problem B" };
+      state.busy["review:prob_b"] = true;
+    `,
+    context,
+  );
+  resolveReview();
+  await pending;
+
+  assert.equal(context.__elements.reviewButton.disabled, true);
+  assert.equal(vm.runInContext("state.busy['review:prob_b']", context), true);
+});
+
 test("renderAll keeps selected problem action buttons disabled while operations are busy", () => {
   const context = loadAppContext();
   vm.runInContext(

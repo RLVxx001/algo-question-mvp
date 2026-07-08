@@ -968,11 +968,16 @@ async function rerunFailedCase(index) {
 }
 
 function setBusy(button, busy, text) {
-  button.disabled = busy || !state.selected;
   if (!button.dataset.originalText) {
     button.dataset.originalText = button.innerHTML;
   }
-  button.innerHTML = busy ? `<span class="button-icon">...</span><span>${text}</span>` : button.dataset.originalText;
+  if (busy) {
+    button.disabled = true;
+    button.innerHTML = `<span class="button-icon">...</span><span>${text}</span>`;
+    return;
+  }
+  button.innerHTML = button.dataset.originalText;
+  renderAll();
 }
 
 function fieldError(field, message) {
