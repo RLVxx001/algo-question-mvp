@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -68,6 +69,11 @@ def create_problem_package_archive(problem_id: str, root: Path) -> Path:
 def _write_package_file(path: Path, text: str, encoding: str) -> None:
     if path.is_symlink():
         path.unlink()
+    elif path.exists() and not path.is_file():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
     path.write_text(text, encoding=encoding)
 
 

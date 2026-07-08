@@ -155,6 +155,24 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(package_dir.is_dir())
             self.assertTrue((package_dir / "problem.json").exists())
 
+    def test_export_package_replaces_directory_obstacle_with_package_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_dir = root / problem.id
+            package_dir.mkdir()
+            package_file = package_dir / "problem.md"
+            package_file.mkdir()
+            (package_file / "stale.txt").write_text("stale", encoding="utf-8")
+
+            export_problem_package(problem, root, validation, review)
+
+            self.assertTrue(package_file.is_file())
+            self.assertIn(problem.title, package_file.read_text(encoding="utf-8"))
+
     def test_export_archive_skips_symlinked_files_inside_package(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
