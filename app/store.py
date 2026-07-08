@@ -159,7 +159,11 @@ class ReportStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
-        return data if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            return None
+        if data.get("problem_id") not in {None, problem_id}:
+            return None
+        return data
 
 
 def _safe_id(problem_id: str) -> str:

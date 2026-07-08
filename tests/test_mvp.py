@@ -519,6 +519,23 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertIsNone(store.get_review("prob_bad"))
             self.assertIsNone(store.get_validation("prob_bad"))
 
+    def test_report_store_ignores_mismatched_problem_id_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ReportStore(Path(tmp))
+            report_dir = store.dir_for("prob_a")
+            report_dir.mkdir(parents=True)
+            (report_dir / "review_report.json").write_text(
+                json.dumps({"problem_id": "prob_b", "passed": True}),
+                encoding="utf-8",
+            )
+            (report_dir / "validation_report.json").write_text(
+                json.dumps({"problem_id": "prob_b", "sample_passed": True, "fuzz_passed": True}),
+                encoding="utf-8",
+            )
+
+            self.assertIsNone(store.get_review("prob_a"))
+            self.assertIsNone(store.get_validation("prob_a"))
+
     def test_server_persists_review_and_validation_reports_before_package_export(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
