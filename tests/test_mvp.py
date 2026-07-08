@@ -1380,6 +1380,20 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertIn("sample reference failed", report.failed_cases[0].reason)
         self.assertIn("RuntimeError", report.failed_cases[0].reason)
 
+    def test_validation_report_truncates_sample_runtime_failure_payloads(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.samples = [{"input": "i" * 6000, "output": "o" * 6000}]
+        problem.reference_solution = "raise RuntimeError('boom')\n"
+
+        report = validate_problem(problem, rounds=0, timeout_seconds=1.0)
+
+        failed = report.failed_cases[0]
+        self.assertIn("sample reference failed", failed.reason)
+        self.assertLessEqual(len(failed.input), 4300)
+        self.assertLessEqual(len(failed.expected), 4300)
+        self.assertIn("... truncated ...", failed.input)
+        self.assertIn("... truncated ...", failed.expected)
+
     def test_validation_report_truncates_long_runtime_stderr(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "import sys\nsys.stderr.write('x' * 6000)\nraise SystemExit(1)\n"

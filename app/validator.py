@@ -38,8 +38,8 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 failed.append(
                     ValidationCaseResult(
                         index=idx,
-                        input=sample["input"],
-                        expected=expected,
+                        input=_truncate_case_input(sample["input"]),
+                        expected=_truncate_case_output(expected),
                         actual="",
                         passed=False,
                         reason=f"sample reference failed: {exc}",
