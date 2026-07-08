@@ -192,19 +192,19 @@ def _problem_from_payload(req: ProblemRequest, payload: dict[str, Any], source: 
     problem_id = f"prob_{int(time.time())}_{uuid4().hex[:8]}"
     return GeneratedProblem(
         id=problem_id,
-        title=str(payload["title"]),
+        title=_normalize_text_field(payload["title"], "title"),
         topic=req.topic,
         difficulty=req.difficulty,
-        statement=str(payload["statement"]),
-        input_format=str(payload["input_format"]),
-        output_format=str(payload["output_format"]),
-        constraints=list(payload["constraints"]),
-        samples=list(payload["samples"]),
-        tags=list(payload["tags"]),
-        solution_explanation=str(payload["solution_explanation"]),
-        reference_solution=str(payload["reference_solution"]),
-        brute_force_solution=str(payload["brute_force_solution"]),
-        generator_code=str(payload["generator_code"]),
+        statement=_normalize_text_field(payload["statement"], "statement"),
+        input_format=_normalize_text_field(payload["input_format"], "input_format"),
+        output_format=_normalize_text_field(payload["output_format"], "output_format"),
+        constraints=_normalize_text_list_field(payload["constraints"], "constraints"),
+        samples=_normalize_samples_field(payload["samples"]),
+        tags=_normalize_text_list_field(payload["tags"], "tags"),
+        solution_explanation=_normalize_text_field(payload["solution_explanation"], "solution_explanation"),
+        reference_solution=_normalize_text_field(payload["reference_solution"], "reference_solution"),
+        brute_force_solution=_normalize_text_field(payload["brute_force_solution"], "brute_force_solution"),
+        generator_code=_normalize_text_field(payload["generator_code"], "generator_code"),
         created_at=datetime.now(timezone.utc).isoformat(),
         source=source,
         statement_language=req.statement_language,
@@ -227,9 +227,53 @@ def _apply_stage_patch(problem: GeneratedProblem, patch: dict[str, Any], source:
     }
     for key, value in patch.items():
         if key in allowed:
-            setattr(problem, key, value)
+            setattr(problem, key, _normalize_problem_field(key, value))
     problem.source = source
     return problem
+
+
+def _normalize_problem_field(key: str, value: Any) -> Any:
+    if key in {
+        "title",
+        "statement",
+        "input_format",
+        "output_format",
+        "solution_explanation",
+        "reference_solution",
+        "brute_force_solution",
+        "generator_code",
+    }:
+        return _normalize_text_field(value, key)
+    if key in {"constraints", "tags"}:
+        return _normalize_text_list_field(value, key)
+    if key == "samples":
+        return _normalize_samples_field(value)
+    return value
+
+
+def _normalize_text_field(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
+def _normalize_text_list_field(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{field} must be a list of strings")
+    return value
+
+
+def _normalize_samples_field(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError("samples must be a list of objects")
+    samples: list[dict[str, str]] = []
+    for sample in value:
+        sample_input = sample.get("input")
+        sample_output = sample.get("output")
+        if not isinstance(sample_input, str) or not isinstance(sample_output, str):
+            raise ValueError("samples must include string input and output")
+        samples.append({"input": sample_input, "output": sample_output})
+    return samples
 
 
 def _generate_stage_from_template(problem: GeneratedProblem, req: ProblemRequest, stage: str, source: str) -> GeneratedProblem:

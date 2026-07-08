@@ -1424,6 +1424,23 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         problem = GeneratedProblem.from_dict(data)
         self.assertEqual(problem.statement_language, "en")
 
+    def test_llm_problem_payload_rejects_non_list_structured_fields(self) -> None:
+        from app.generator import _problem_from_payload
+
+        payload = generate_problem(ProblemRequest(topic="array", statement_language="en", use_llm=False)).to_dict()
+        payload["constraints"] = "1 <= n <= 10"
+
+        with self.assertRaisesRegex(ValueError, "constraints must be a list of strings"):
+            _problem_from_payload(ProblemRequest(topic="array", statement_language="en"), payload, "llm")
+
+    def test_llm_stage_patch_rejects_non_list_structured_fields(self) -> None:
+        from app.generator import _apply_stage_patch
+
+        problem = generate_problem(ProblemRequest(topic="array", statement_language="en", use_llm=False))
+
+        with self.assertRaisesRegex(ValueError, "samples must be a list of objects"):
+            _apply_stage_patch(problem, {"samples": "not a sample list"}, "llm")
+
     def test_validation_report_includes_operational_metadata(self) -> None:
         problem = generate_problem(ProblemRequest(topic="prefix sum", use_llm=False))
 
