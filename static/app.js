@@ -789,24 +789,85 @@ function setBusy(button, busy, text) {
   button.innerHTML = busy ? `<span class="button-icon">...</span><span>${text}</span>` : button.dataset.originalText;
 }
 
+function fieldError(field, message) {
+  const error = new Error(message);
+  error.field = field;
+  return error;
+}
+
+function parseClampedInteger(value, field, defaultValue, min, max) {
+  const text = String(value ?? "").trim();
+  if (!text) return defaultValue;
+  if (!/^[+-]?\d+$/.test(text)) {
+    throw fieldError(field, `${field} must be an integer`);
+  }
+  return Math.max(min, Math.min(Number.parseInt(text, 10), max));
+}
+
+function parseClampedNumber(value, field, defaultValue, min, max) {
+  const text = String(value ?? "").trim();
+  if (!text) return defaultValue;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) {
+    throw fieldError(field, `${field} must be a number`);
+  }
+  return Math.max(min, Math.min(parsed, max));
+}
+
+function normalizeDifficulty(value) {
+  const normalized = String(value || "easy").trim().toLowerCase();
+  if (["easy", "medium", "hard"].includes(normalized)) return normalized;
+  throw fieldError("difficulty", "difficulty must be easy, medium, or hard");
+}
+
+function normalizeStatementLanguage(value) {
+  if (value == null) return "zh";
+  const normalized = String(value).trim().toLowerCase();
+  if (["zh", "cn", "chinese", "中文", "汉语"].includes(normalized)) return "zh";
+  if (["en", "english"].includes(normalized)) return "en";
+  throw fieldError("statement_language", "statement_language must be zh or en");
+}
+
 function buildGenerationPayload(form, controls = els) {
   const topic = String(form.get("topic") ?? "").trim();
   if (!topic) {
-    throw new Error("topic is required");
+    throw fieldError("topic", "topic is required");
   }
   return {
     topic,
-    difficulty: String(form.get("difficulty") || "easy"),
-    statement_language: String(form.get("statement_language") || "zh"),
-    count: Number(form.get("count") || 1),
+    difficulty: normalizeDifficulty(form.get("difficulty")),
+    statement_language: normalizeStatementLanguage(form.get("statement_language")),
+    count: parseClampedInteger(form.get("count"), "count", 1, 1, 5),
     use_llm: Boolean(controls.useLlmInput?.checked),
   };
 }
 
-function markTopicInvalid(invalid) {
-  els.topicInput?.classList?.toggle("input-error", invalid);
-  if (invalid) {
-    els.topicInput?.focus();
+function markInputInvalid(input, invalid, focus = false) {
+  input?.classList?.toggle("input-error", invalid);
+  if (invalid && focus) {
+    input?.focus?.();
+  }
+}
+
+function markGenerationInvalid(error = null) {
+  markInputInvalid(els.topicInput, false);
+  markInputInvalid(els.countInput, false);
+  if (!error) return;
+  if (error.field === "count") {
+    markInputInvalid(els.countInput, true, true);
+  } else {
+    markInputInvalid(els.topicInput, true, true);
+  }
+}
+
+function markValidationInvalid(error = null) {
+  markInputInvalid(els.roundsInput, false);
+  markInputInvalid(els.timeoutInput, false);
+  if (!error) return;
+  if (error.field === "timeout_seconds") {
+    markInputInvalid(els.timeoutInput, true, true);
+  } else {
+    markInputInvalid(els.roundsInput, true, true);
   }
 }
 
@@ -816,9 +877,9 @@ async function handleGenerate(event) {
   let payload;
   try {
     payload = buildGenerationPayload(form, els);
-    markTopicInvalid(false);
+    markGenerationInvalid();
   } catch (err) {
-    markTopicInvalid(true);
+    markGenerationInvalid(err);
     log("生成失败", err.message, "bad");
     return;
   }
@@ -891,10 +952,10 @@ function problemPatchFromEditForm(form) {
   };
 }
 
-function validationOptions() {
+function validationOptions(controls = els) {
   return {
-    rounds: Number(els.roundsInput?.value || 100),
-    timeout_seconds: Number(els.timeoutInput?.value || 2),
+    rounds: parseClampedInteger(controls.roundsInput?.value, "rounds", 100, 1, 1000),
+    timeout_seconds: parseClampedNumber(controls.timeoutInput?.value, "timeout_seconds", 2, 0.2, 10),
   };
 }
 
@@ -979,11 +1040,20 @@ async function runReview() {
 async function runValidate() {
   const id = currentProblemId();
   if (!id) return;
+  let options;
+  try {
+    options = validationOptions();
+    markValidationInvalid();
+  } catch (err) {
+    markValidationInvalid(err);
+    log("验证失败", err.message, "bad");
+    return;
+  }
   setBusy(els.validateButton, true, "验证中");
   try {
     const data = await api(`/api/problems/${id}/validate`, {
       method: "POST",
-      body: JSON.stringify(validationOptions()),
+      body: JSON.stringify(options),
     });
     state.reports[id] = { ...(state.reports[id] || {}), validation: data };
     renderAll();
@@ -998,11 +1068,20 @@ async function runValidate() {
 async function runPackage() {
   const id = currentProblemId();
   if (!id) return;
+  let options;
+  try {
+    options = validationOptions();
+    markValidationInvalid();
+  } catch (err) {
+    markValidationInvalid(err);
+    log("导出失败", err.message, "bad");
+    return;
+  }
   setBusy(els.packageButton, true, "导出中");
   try {
     const data = await api(`/api/problems/${id}/package`, {
       method: "POST",
-      body: JSON.stringify(validationOptions()),
+      body: JSON.stringify(options),
     });
     state.reports[id] = {
       ...(state.reports[id] || {}),

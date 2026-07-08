@@ -49,6 +49,10 @@ function formValues(values) {
   };
 }
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 test("buildGenerationPayload rejects blank topic before submit", () => {
   const context = loadAppContext();
 
@@ -65,5 +69,111 @@ test("buildGenerationPayload rejects blank topic before submit", () => {
         { useLlmInput: { checked: false } },
       ),
     /topic is required/,
+  );
+});
+
+test("buildGenerationPayload normalizes count and language aliases", () => {
+  const context = loadAppContext();
+
+  const payload = context.buildGenerationPayload(
+    formValues({
+      topic: "  binary search  ",
+      difficulty: "Medium",
+      statement_language: "English",
+      count: "9",
+    }),
+    { useLlmInput: { checked: true } },
+  );
+
+  assert.deepEqual(plain(payload), {
+    topic: "binary search",
+    difficulty: "medium",
+    statement_language: "en",
+    count: 5,
+    use_llm: true,
+  });
+});
+
+test("buildGenerationPayload rejects invalid generation fields", () => {
+  const context = loadAppContext();
+
+  assert.throws(
+    () =>
+      context.buildGenerationPayload(
+        formValues({
+          topic: "array",
+          difficulty: "expert",
+          statement_language: "zh",
+          count: "1",
+        }),
+        { useLlmInput: { checked: false } },
+      ),
+    /difficulty must be easy, medium, or hard/,
+  );
+
+  assert.throws(
+    () =>
+      context.buildGenerationPayload(
+        formValues({
+          topic: "array",
+          difficulty: "easy",
+          statement_language: "fr",
+          count: "1",
+        }),
+        { useLlmInput: { checked: false } },
+      ),
+    /statement_language must be zh or en/,
+  );
+
+  assert.throws(
+    () =>
+      context.buildGenerationPayload(
+        formValues({
+          topic: "array",
+          difficulty: "easy",
+          statement_language: "zh",
+          count: "many",
+        }),
+        { useLlmInput: { checked: false } },
+      ),
+    /count must be an integer/,
+  );
+});
+
+test("validationOptions normalizes validation controls", () => {
+  const context = loadAppContext();
+
+  assert.deepEqual(
+    plain(context.validationOptions({
+      roundsInput: { value: "1005" },
+      timeoutInput: { value: "0.1" },
+    })),
+    { rounds: 1000, timeout_seconds: 0.2 },
+  );
+
+  assert.deepEqual(
+    plain(context.validationOptions({
+      roundsInput: { value: "0" },
+      timeoutInput: { value: "11" },
+    })),
+    { rounds: 1, timeout_seconds: 10 },
+  );
+
+  assert.throws(
+    () =>
+      context.validationOptions({
+        roundsInput: { value: "abc" },
+        timeoutInput: { value: "2" },
+      }),
+    /rounds must be an integer/,
+  );
+
+  assert.throws(
+    () =>
+      context.validationOptions({
+        roundsInput: { value: "10" },
+        timeoutInput: { value: "fast" },
+      }),
+    /timeout_seconds must be a number/,
   );
 });
