@@ -266,9 +266,9 @@ async function loadStoredReports(id) {
   try {
     const data = await api(`/api/problems/${id}/reports`);
     updateProblemReports(id, {
-      ...(data.review ? { review: data.review } : {}),
-      ...(data.validation ? { validation: data.validation } : {}),
-      ...(data.package ? { package: data.package } : {}),
+      review: data.review ?? null,
+      validation: data.validation ?? null,
+      package: data.package ?? null,
     });
     return true;
   } catch (err) {

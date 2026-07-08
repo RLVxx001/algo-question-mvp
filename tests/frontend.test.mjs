@@ -508,6 +508,44 @@ test("loadWorkflow logs non-404 failures but ignores missing workflow records", 
   ]);
 });
 
+test("loadStoredReports clears stale reports when server returns null entries", async () => {
+  const context = loadAppContext();
+
+  context.fetch = async (path) => {
+    assert.equal(path, "/api/problems/prob_a/reports");
+    return {
+      ok: true,
+      json: async () => ({
+        problem_id: "prob_a",
+        review: null,
+        validation: null,
+        package: null,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.reports.prob_a = {
+        review: { passed: true },
+        validation: { failed_cases: [] },
+        package: { package_dir: "old" }
+      };
+      state.reruns["prob_a:0"] = { passed: false };
+    `,
+    context,
+  );
+
+  const loaded = await context.loadStoredReports("prob_a");
+
+  assert.equal(loaded, true);
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a", context)), {
+    review: null,
+    validation: null,
+    package: null,
+  });
+  assert.equal(vm.runInContext("state.reruns['prob_a:0']", context), undefined);
+});
+
 test("selectProblem removes missing problem from list without throwing", async () => {
   const context = loadAppContext();
   const logs = [];
