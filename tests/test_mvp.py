@@ -285,6 +285,9 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             unsafe = problem.to_dict()
             unsafe["id"] = "../packages_evil/prob_x"
             (store.root / "unsafe_id.json").write_text(json.dumps(unsafe), encoding="utf-8")
+            mismatched = problem.to_dict()
+            mismatched["id"] = "prob_other"
+            (store.root / "wrong_name.json").write_text(json.dumps(mismatched), encoding="utf-8")
 
             self.assertEqual([item.id for item in store.list()], [problem.id])
 
@@ -318,8 +321,11 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             store.path_for("prob_bad_json").write_text("{bad", encoding="utf-8")
             store.path_for("prob_not_object").write_text("[]", encoding="utf-8")
             store.path_for("prob_missing_fields").write_text(json.dumps({"id": "prob_missing_fields"}), encoding="utf-8")
+            mismatched = generate_problem(ProblemRequest(topic="array", use_llm=False)).to_dict()
+            mismatched["id"] = "prob_other"
+            store.path_for("prob_mismatch").write_text(json.dumps(mismatched), encoding="utf-8")
 
-            for problem_id in ["prob_bad_json", "prob_not_object", "prob_missing_fields"]:
+            for problem_id in ["prob_bad_json", "prob_not_object", "prob_missing_fields", "prob_mismatch"]:
                 with self.subTest(problem_id=problem_id):
                     with self.assertRaises(KeyError):
                         store.get(problem_id)

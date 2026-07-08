@@ -27,7 +27,10 @@ class ProblemStore:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("problem data must be an object")
-            return GeneratedProblem.from_dict(data)
+            problem = GeneratedProblem.from_dict(data)
+            if problem.id != problem_id:
+                raise ValueError("problem id does not match storage key")
+            return problem
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
             raise KeyError(problem_id) from exc
 
@@ -63,6 +66,8 @@ def _read_problem_for_list(path: Path) -> GeneratedProblem | None:
     try:
         problem = GeneratedProblem.from_dict(data)
         _safe_id(problem.id)
+        if problem.id != path.stem:
+            return None
         return problem
     except (TypeError, ValueError):
         return None
