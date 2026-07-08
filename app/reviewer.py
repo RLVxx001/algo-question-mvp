@@ -100,7 +100,7 @@ def _check_dangerous_python(source: str, field: str, issues: list[ReviewIssue]) 
         tree = ast.parse(source)
     except SyntaxError:
         return
-    dangerous_modules = {"os", "socket", "subprocess", "shutil", "requests", "urllib", "importlib", "pathlib"}
+    dangerous_modules = {"builtins", "os", "socket", "subprocess", "shutil", "requests", "urllib", "importlib", "pathlib"}
     dangerous_calls = {"open", "eval", "exec", "__import__"}
     if any(_has_dangerous_node(node, dangerous_modules, dangerous_calls) for node in ast.walk(tree)):
         issues.append(ReviewIssue("error", field, "dangerous local-execution code is not allowed in this MVP"))
