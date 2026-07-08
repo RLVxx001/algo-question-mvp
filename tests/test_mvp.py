@@ -1338,6 +1338,10 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             _clamp_rounds(False)
         with self.assertRaisesRegex(ValueError, "timeout_seconds must be a number"):
             _clamp_timeout(True)
+        with self.assertRaisesRegex(ValueError, "timeout_seconds must be a number"):
+            _clamp_timeout(float("nan"))
+        with self.assertRaisesRegex(ValueError, "timeout_seconds must be a number"):
+            _clamp_timeout(float("inf"))
 
     def test_problem_request_parser_handles_string_boolean_flags(self) -> None:
         from app.server import _problem_request_from_body

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import mimetypes
 import os
 import shutil
@@ -661,6 +662,8 @@ def _clamp_timeout(value: object) -> float:
         timeout_seconds = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError("timeout_seconds must be a number") from exc
+    if not math.isfinite(timeout_seconds):
+        raise ValueError("timeout_seconds must be a number")
     return max(MIN_TIMEOUT_SECONDS, min(timeout_seconds, MAX_TIMEOUT_SECONDS))
 
 
