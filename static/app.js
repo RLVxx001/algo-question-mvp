@@ -220,7 +220,11 @@ async function selectProblem(id) {
     state.selected = problem;
     state.activeTab = "statement";
     state.reports[id] = state.reports[id] || {};
-    await loadStoredReports(id);
+    if (!(await loadStoredReports(id))) {
+      forgetProblem(id);
+      log("题目不存在", "列表中的题目已不存在或无法读取，已从当前列表移除。", "warn");
+      return;
+    }
     await loadSimilarity(id);
     await loadWorkflow(id);
     renderAll();
@@ -254,8 +258,14 @@ async function loadStoredReports(id) {
       ...(data.validation ? { validation: data.validation } : {}),
       ...(data.package ? { package: data.package } : {}),
     });
+    return true;
   } catch (err) {
+    if (err.status === 404) {
+      delete state.reports[id];
+      return false;
+    }
     log("报告读取失败", err.message, "warn");
+    return true;
   }
 }
 

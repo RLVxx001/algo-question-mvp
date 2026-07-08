@@ -540,6 +540,83 @@ test("selectProblem removes missing problem from list without throwing", async (
   ]);
 });
 
+test("selectProblem clears stale problem when reports endpoint returns not found", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  let renderCount = 0;
+  const requestedPaths = [];
+  const stale = {
+    id: "prob_stale",
+    title: "Stale",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+  const kept = {
+    id: "prob_kept",
+    title: "Kept",
+    topic: "graph",
+    difficulty: "medium",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["graph"],
+  };
+
+  context.fetch = async (path) => {
+    requestedPaths.push(path);
+    if (path === "/api/problems/prob_stale") {
+      return {
+        ok: true,
+        json: async () => stale,
+      };
+    }
+    if (path === "/api/problems/prob_stale/reports") {
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "problem not found" }),
+      };
+    }
+    throw new Error(`unexpected request: ${path}`);
+  };
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  context.renderAll = () => {
+    renderCount += 1;
+  };
+  vm.runInContext(
+    `
+      state.problems = ${JSON.stringify([stale, kept])};
+      state.reports.prob_stale = { review: { passed: true } };
+      state.workflows.prob_stale = { status: "waiting_user" };
+      state.similarity.prob_stale = { has_risk: false };
+      state.reruns["prob_stale:0"] = { passed: true };
+    `,
+    context,
+  );
+
+  await assert.doesNotReject(() => context.selectProblem("prob_stale"));
+
+  assert.deepEqual(requestedPaths, ["/api/problems/prob_stale", "/api/problems/prob_stale/reports"]);
+  assert.deepEqual(plain(vm.runInContext("state.problems.map((problem) => problem.id)", context)), ["prob_kept"]);
+  assert.equal(vm.runInContext("state.selected", context), null);
+  assert.equal(vm.runInContext("'prob_stale' in state.reports", context), false);
+  assert.equal(vm.runInContext("'prob_stale' in state.workflows", context), false);
+  assert.equal(vm.runInContext("'prob_stale' in state.similarity", context), false);
+  assert.equal(vm.runInContext("'prob_stale:0' in state.reruns", context), false);
+  assert.equal(renderCount, 1);
+  assert.deepEqual(logs, [
+    {
+      title: "题目不存在",
+      message: "列表中的题目已不存在或无法读取，已从当前列表移除。",
+      level: "warn",
+    },
+  ]);
+});
+
 test("runReview ignores duplicate clicks while request is in flight", async () => {
   const context = loadAppContext();
   let resolveReview;
