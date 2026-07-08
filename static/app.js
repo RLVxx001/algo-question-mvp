@@ -374,15 +374,26 @@ function renderAll() {
   const hasProblem = Boolean(problem);
   const problemId = problem?.id;
   els.currentTitle.textContent = problem?.title || "等待选择题目";
-  els.reviewButton.disabled = !hasProblem || isProblemOperationBusy("review", problemId);
-  els.validateButton.disabled = !hasProblem || isProblemOperationBusy("validate", problemId);
-  els.packageButton.disabled = !hasProblem || isProblemOperationBusy("package", problemId);
-  els.deleteButton.disabled = !hasProblem || isProblemOperationBusy("delete", problemId);
+  syncActionButton(els.reviewButton, hasProblem, "review", problemId, "审查中");
+  syncActionButton(els.validateButton, hasProblem, "validate", problemId, "验证中");
+  syncActionButton(els.packageButton, hasProblem, "package", problemId, "导出中");
+  syncActionButton(els.deleteButton, hasProblem, "delete", problemId, "删除中");
   els.llmMetric.textContent = runtimeModeLabel(state.runtime?.llm);
   renderMetrics();
   renderProblemList();
   renderTabs();
   renderDetail();
+}
+
+function syncActionButton(button, hasProblem, action, problemId, busyText) {
+  if (!button.dataset.originalText) {
+    button.dataset.originalText = button.innerHTML;
+  }
+  const busy = isProblemOperationBusy(action, problemId);
+  button.disabled = !hasProblem || busy;
+  button.innerHTML = busy
+    ? `<span class="button-icon">...</span><span>${busyText}</span>`
+    : button.dataset.originalText;
 }
 
 function renderMetrics() {

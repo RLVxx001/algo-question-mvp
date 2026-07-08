@@ -861,6 +861,7 @@ test("finishing stale review keeps current problem review button disabled", asyn
     resolveReview = resolve;
   });
 
+  context.__elements.reviewButton.innerHTML = `<span class="button-icon">?</span><span>审查</span>`;
   context.fetch = async () => {
     await reviewResponse;
     return {
@@ -888,6 +889,7 @@ test("finishing stale review keeps current problem review button disabled", asyn
   await pending;
 
   assert.equal(context.__elements.reviewButton.disabled, true);
+  assert.match(context.__elements.reviewButton.innerHTML, /审查中/);
   assert.equal(vm.runInContext("state.busy['review:prob_b']", context), true);
 });
 
