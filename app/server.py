@@ -16,7 +16,7 @@ from app.reviewer import review_problem
 from app.similarity import find_similar_problems
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import ValidationError, rerun_case, validate_problem
-from app.workflow import advance_workflow, apply_problem_patch, create_workflow
+from app.workflow import advance_workflow, apply_problem_patch, create_workflow, normalize_manual_steps
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -142,11 +142,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = self._read_json()
             req = _problem_request_from_body(body)
-            manual_steps = body.get("manual_steps")
-            if not isinstance(manual_steps, list):
-                manual_steps = ["statement"]
+            manual_steps = normalize_manual_steps(body.get("manual_steps") if "manual_steps" in body else None)
             problem = create_problem_draft(req)
-            workflow = create_workflow(problem, req, [str(step) for step in manual_steps])
+            workflow = create_workflow(problem, req, manual_steps)
             workflow, result = advance_workflow(workflow, problem, PACKAGE_ROOT)
             problem = result.get("problem", problem)
             _persist_reports(problem.id, result.get("reports", {}))

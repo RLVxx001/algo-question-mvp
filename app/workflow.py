@@ -25,7 +25,7 @@ MANUAL_WORKFLOW_STEP_KEYS = {"idea", "statement", "constraints", "solutions", "g
 
 
 def create_workflow(problem: GeneratedProblem, req: ProblemRequest, manual_steps: list[str] | None = None) -> ProblemWorkflow:
-    manual = set(_normalize_manual_steps(manual_steps))
+    manual = set(normalize_manual_steps(manual_steps))
     now = _now()
     steps = [
         WorkflowStep(
@@ -47,13 +47,20 @@ def create_workflow(problem: GeneratedProblem, req: ProblemRequest, manual_steps
     )
 
 
-def _normalize_manual_steps(manual_steps: list[str] | None) -> list[str]:
+def normalize_manual_steps(manual_steps: object | None) -> list[str]:
     if manual_steps is None:
         return ["statement"]
+    if not isinstance(manual_steps, list):
+        raise ValueError("manual_steps must be a list of step names")
+    normalized = []
     for step in manual_steps:
+        if not isinstance(step, str):
+            raise ValueError("manual_steps must be a list of step names")
+        step = step.strip()
         if step not in MANUAL_WORKFLOW_STEP_KEYS:
             raise ValueError(f"manual_steps contains unsupported step: {step}")
-    return manual_steps
+        normalized.append(step)
+    return normalized
 
 
 def advance_workflow(

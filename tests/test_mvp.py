@@ -506,6 +506,54 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertEqual(payload["error"], "manual_steps contains unsupported step: unknown")
             self.assertEqual(problem_store.list(), [])
 
+    def test_server_workflow_rejects_non_list_manual_steps_without_saving_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "topic": "array",
+                "use_llm": False,
+                "manual_steps": "statement",
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._start_workflow()
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "manual_steps must be a list of step names")
+            self.assertEqual(problem_store.list(), [])
+
+    def test_server_workflow_validates_manual_steps_before_creating_draft(self) -> None:
+        from app.server import Handler
+
+        handler = object.__new__(Handler)
+        handler.wfile = Mock()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+        handler._read_json = lambda default=None: {
+            "topic": "array",
+            "use_llm": True,
+            "manual_steps": "statement",
+        }
+
+        with patch("app.server.create_problem_draft") as create_draft:
+            handler._start_workflow()
+
+        create_draft.assert_not_called()
+        handler.send_response.assert_called_once_with(400)
+        payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+        self.assertEqual(payload["error"], "manual_steps must be a list of step names")
+
     def test_server_workflow_continue_parses_string_false_confirmation(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement"])

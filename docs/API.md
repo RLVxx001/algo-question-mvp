@@ -380,7 +380,7 @@ Content-Type: application/json
 - `solutions`
 - `generator`
 
-不传 `manual_steps` 时默认在 `statement` 停下；显式传空数组 `[]` 表示所有步骤都自动执行。传入未知步骤名会返回 `400`，并且不会保存草稿题目。
+不传 `manual_steps` 时默认在 `statement` 停下；显式传空数组 `[]` 表示所有步骤都自动执行。只要传入 `manual_steps`，它就必须是字符串数组；非数组、非字符串元素或未知步骤名都会返回 `400`，并且不会保存草稿题目。
 
 分步流程走到 `package` 步骤时也会重新运行审查和验证，并遵守和 `/api/problems/{problem_id}/package` 相同的导出闸门。失败时流程状态会变为 `failed`，返回的 `reports.package.package_blocked` 为 `true`，不会创建导出目录。
 

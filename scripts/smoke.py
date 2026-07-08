@@ -210,6 +210,32 @@ def main() -> int:
         problem_count_after_invalid_workflow == problem_count_before_invalid_workflow,
         "invalid workflow manual steps do not save a draft problem",
     )
+    try:
+        _post_json(
+            f"{base_url}/api/workflows/start",
+            {
+                "topic": "array",
+                "difficulty": "easy",
+                "count": 1,
+                "use_llm": False,
+                "manual_steps": "statement",
+            },
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "non-list workflow manual steps returns 400")
+        _assert(
+            body["error"] == "manual_steps must be a list of step names",
+            "non-list workflow manual steps has clear error",
+        )
+    else:
+        raise AssertionError("non-list workflow manual steps unexpectedly succeeded")
+    problem_count_after_non_list_workflow = len(_get_json(f"{base_url}/api/problems").get("list") or [])
+    _assert(
+        problem_count_after_non_list_workflow == problem_count_before_invalid_workflow,
+        "non-list workflow manual steps do not save a draft problem",
+    )
     results.append("manual step validation ok")
 
     workflow = _post_json(
