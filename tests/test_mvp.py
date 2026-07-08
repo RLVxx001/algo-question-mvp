@@ -1147,10 +1147,10 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             problem,
             {
                 "samples": [
-                    {"input": 123, "output": 456, "note": "ignored"},
+                    {"input": "123", "output": "456", "note": "ignored"},
                     {"input": "7 8\n", "output": "15\n"},
                 ],
-                "reference_solution": 100,
+                "reference_solution": "print(100)\n",
             },
         )
 
@@ -1161,7 +1161,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
                 {"input": "7 8\n", "output": "15\n"},
             ],
         )
-        self.assertEqual(edited.reference_solution, "100")
+        self.assertEqual(edited.reference_solution, "print(100)\n")
+
+    def test_problem_patch_rejects_non_string_edit_values(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        cases = [
+            ({"title": 123}, "title must be a string"),
+            ({"constraints": ["1 <= n <= 10", 100]}, "constraints items must be strings"),
+            ({"tags": ["array", {"bad": True}]}, "tags items must be strings"),
+            ({"samples": [{"input": "1 2\n", "output": 3}]}, r"samples\[1\]\.output must be a string"),
+        ]
+        for patch, message in cases:
+            with self.subTest(patch=patch):
+                with self.assertRaisesRegex(ValueError, message):
+                    apply_problem_patch(problem, patch)
 
     def test_problem_patch_rejects_unknown_fields(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
@@ -1193,6 +1207,31 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertEqual(problem_store.get(problem.id).samples, original_samples)
             body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertIn("samples", body["error"])
+
+    def test_server_edit_rejects_non_string_patch_values_without_saving(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        original_title = problem.title
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"patch": {"title": 123}}
+
+            with patch("app.server.STORE", problem_store):
+                handler._edit_problem(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            self.assertEqual(problem_store.get(problem.id).title, original_title)
+            body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(body["error"], "title must be a string")
 
     def test_server_edit_rejects_non_object_body_without_saving(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

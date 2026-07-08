@@ -200,7 +200,7 @@ def apply_problem_patch(problem: GeneratedProblem, patch: dict) -> GeneratedProb
         if key not in allowed:
             raise ValueError(f"patch contains unsupported field: {key}")
         if key in string_fields:
-            updates[key] = _string_or_empty(value)
+            updates[key] = _require_string(key, value)
         elif key in list_fields:
             updates[key] = _normalize_string_list(key, value)
         elif key == "samples":
@@ -210,16 +210,23 @@ def apply_problem_patch(problem: GeneratedProblem, patch: dict) -> GeneratedProb
     return problem
 
 
-def _string_or_empty(value: object) -> str:
-    if value is None:
-        return ""
-    return str(value)
+def _require_string(field: str, value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
 
 
 def _normalize_string_list(field: str, value: object) -> list[str]:
     if not isinstance(value, list):
         raise ValueError(f"{field} must be a list")
-    return [item for item in (_string_or_empty(item).strip() for item in value) if item]
+    normalized = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{field} items must be strings")
+        item = item.strip()
+        if item:
+            normalized.append(item)
+    return normalized
 
 
 def _normalize_samples(value: object) -> list[dict[str, str]]:
@@ -233,8 +240,8 @@ def _normalize_samples(value: object) -> list[dict[str, str]]:
             raise ValueError(f"samples[{index}] must include input and output")
         samples.append(
             {
-                "input": _string_or_empty(sample["input"]),
-                "output": _string_or_empty(sample["output"]),
+                "input": _require_string(f"samples[{index}].input", sample["input"]),
+                "output": _require_string(f"samples[{index}].output", sample["output"]),
             }
         )
     return samples
