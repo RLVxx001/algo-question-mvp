@@ -49,7 +49,7 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  const data = await response.json();
+  const data = await readApiPayload(response);
   if (!response.ok) {
     const error = new Error(data.error || `HTTP ${response.status}`);
     error.status = response.status;
@@ -57,6 +57,23 @@ async function api(path, options = {}) {
     throw error;
   }
   return data;
+}
+
+async function readApiPayload(response) {
+  if (typeof response.text === "function") {
+    const body = await response.text();
+    const text = body.trim();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      return { error: text };
+    }
+  }
+  if (typeof response.json === "function") {
+    return response.json();
+  }
+  return {};
 }
 
 function escapeHtml(value) {

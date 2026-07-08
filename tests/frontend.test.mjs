@@ -81,6 +81,25 @@ test("buildGenerationPayload rejects blank topic before submit", () => {
   );
 });
 
+test("api reports plain text error responses with status", async () => {
+  const context = loadAppContext();
+  context.fetch = async () => ({
+    ok: false,
+    status: 502,
+    text: async () => "Bad gateway",
+  });
+
+  await assert.rejects(
+    () => context.api("/api/problems"),
+    (error) => {
+      assert.equal(error.message, "Bad gateway");
+      assert.equal(error.status, 502);
+      assert.deepEqual(plain(error.payload), { error: "Bad gateway" });
+      return true;
+    },
+  );
+});
+
 test("buildGenerationPayload normalizes count and language aliases", () => {
   const context = loadAppContext();
 
