@@ -318,7 +318,10 @@ def _remove_package_artifacts(package_root, problem_id: str) -> None:
     if raw_archive_path is not None and raw_archive_path.is_symlink():
         raw_archive_path.unlink()
     elif archive_path is not None and archive_path.exists():
-        archive_path.unlink()
+        if archive_path.is_dir():
+            shutil.rmtree(archive_path)
+        else:
+            archive_path.unlink()
 
 
 def _package_root_child(root: Path, name: str) -> Path | None:

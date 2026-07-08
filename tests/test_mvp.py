@@ -751,6 +751,22 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(outside_archive.exists())
             self.assertEqual(outside_archive.read_text(encoding="utf-8"), "external zip")
 
+    def test_server_remove_package_artifacts_removes_archive_directory_obstacle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            package_root = Path(tmp) / "packages"
+            package_root.mkdir()
+            archive_path = package_root / "prob_dir.zip"
+            archive_path.mkdir()
+            (archive_path / "stale.txt").write_text("stale", encoding="utf-8")
+
+            from app.server import _remove_package_artifacts
+
+            with patch("app.server.PACKAGE_ROOT", package_root):
+                removed = _remove_package_artifacts("prob_dir")
+
+            self.assertTrue(removed)
+            self.assertFalse(archive_path.exists())
+
     def test_report_store_persists_review_and_validation_without_package(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
@@ -1313,6 +1329,28 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue((outside_package / "problem.md").exists())
             self.assertTrue(outside_archive.exists())
             self.assertEqual(outside_archive.read_text(encoding="utf-8"), "external zip")
+
+    def test_workflow_package_step_removes_stale_archive_directory_on_failure(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "print(0)\n"
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=[])
+        for step in workflow.steps:
+            if step.key != "package":
+                step.status = "completed"
+        workflow.current_step = "package"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            package_root = Path(tmp) / "packages"
+            package_root.mkdir()
+            archive_path = package_root / f"{problem.id}.zip"
+            archive_path.mkdir()
+            (archive_path / "stale.txt").write_text("stale", encoding="utf-8")
+
+            workflow, result = advance_workflow(workflow, problem, package_root)
+
+            self.assertEqual(workflow.status, "failed")
+            self.assertTrue(result["reports"]["package"]["package_blocked"])
+            self.assertFalse(archive_path.exists())
 
     def test_workflow_package_step_rejects_failed_review_without_exporting(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

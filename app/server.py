@@ -640,7 +640,10 @@ def _remove_package_artifacts(problem_id: str) -> bool:
         raw_archive_path.unlink()
         removed = True
     elif archive_path is not None and archive_path.exists():
-        archive_path.unlink()
+        if archive_path.is_dir():
+            shutil.rmtree(archive_path)
+        else:
+            archive_path.unlink()
         removed = True
     return removed
 
