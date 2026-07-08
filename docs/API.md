@@ -71,7 +71,7 @@ Content-Type: application/json
 
 说明：
 
-- `topic`: 知识点或题型。
+- `topic`: 知识点或题型，必须是非空字符串；只包含空白字符会返回 `400`。
 - `difficulty`: 当前只是传给模型和记录，尚未做强约束。
 - `statement_language`: 题面语言，`zh` 或 `en`，默认 `zh`。兼容 `chinese` / `english` 等明确别名，其他值返回 `400`。
 - `count`: 1 到 5；兼容字符串数字，超出范围会收敛到 1 或 5，非整数返回 `400`。

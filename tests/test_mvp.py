@@ -712,6 +712,12 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "count must be an integer"):
             _problem_request_from_body({"topic": "array", "count": "many"})
 
+    def test_problem_request_parser_rejects_blank_topic(self) -> None:
+        from app.server import _problem_request_from_body
+
+        with self.assertRaisesRegex(ValueError, "topic is required"):
+            _problem_request_from_body({"topic": "   ", "use_llm": False})
+
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

@@ -5,6 +5,7 @@ run:
 
 test:
 	python3 -m unittest discover -s tests -p 'test_*.py'
+	node --test tests/frontend.test.mjs
 
 compile:
 	python3 -m py_compile app/*.py tests/*.py scripts/*.py

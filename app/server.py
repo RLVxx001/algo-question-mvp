@@ -547,13 +547,22 @@ def _remove_package_artifacts(problem_id: str) -> bool:
 
 def _problem_request_from_body(body: dict) -> ProblemRequest:
     return ProblemRequest(
-        topic=str(body.get("topic", "array")),
+        topic=_parse_topic(body.get("topic", "array")),
         difficulty=str(body.get("difficulty", "easy")),
         language=str(body.get("language", "python")),
         statement_language=_parse_statement_language(body.get("statement_language", body.get("natural_language", "zh"))),
         count=_parse_count(body.get("count", DEFAULT_GENERATION_COUNT)),
         use_llm=_parse_bool(body.get("use_llm", True), "use_llm"),
     )
+
+
+def _parse_topic(value: object) -> str:
+    if value is None:
+        raise ValueError("topic is required")
+    topic = str(value).strip()
+    if not topic:
+        raise ValueError("topic is required")
+    return topic
 
 
 def _parse_count(value: object) -> int:

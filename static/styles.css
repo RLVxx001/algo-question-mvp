@@ -140,6 +140,11 @@ select {
   appearance: none;
 }
 
+.input-error {
+  border-color: var(--bad) !important;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
+}
+
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

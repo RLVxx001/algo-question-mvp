@@ -81,6 +81,20 @@ def main() -> int:
     else:
         raise AssertionError("invalid generation count unexpectedly succeeded")
 
+    try:
+        _post_json(
+            f"{base_url}/api/problems/generate",
+            {"topic": "   ", "difficulty": "easy", "count": 1, "use_llm": False},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "blank topic returns 400")
+        _assert(body["error"] == "topic is required", "blank topic has clear error")
+        results.append("blank topic rejected ok")
+    else:
+        raise AssertionError("blank topic unexpectedly succeeded")
+
     string_false_problem = _post_json(
         f"{base_url}/api/problems/generate",
         {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": "false"},

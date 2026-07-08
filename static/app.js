@@ -789,16 +789,39 @@ function setBusy(button, busy, text) {
   button.innerHTML = busy ? `<span class="button-icon">...</span><span>${text}</span>` : button.dataset.originalText;
 }
 
-async function handleGenerate(event) {
-  event.preventDefault();
-  const form = new FormData(els.generateForm);
-  const payload = {
-    topic: String(form.get("topic") || "array"),
+function buildGenerationPayload(form, controls = els) {
+  const topic = String(form.get("topic") ?? "").trim();
+  if (!topic) {
+    throw new Error("topic is required");
+  }
+  return {
+    topic,
     difficulty: String(form.get("difficulty") || "easy"),
     statement_language: String(form.get("statement_language") || "zh"),
     count: Number(form.get("count") || 1),
-    use_llm: els.useLlmInput.checked,
+    use_llm: Boolean(controls.useLlmInput?.checked),
   };
+}
+
+function markTopicInvalid(invalid) {
+  els.topicInput?.classList?.toggle("input-error", invalid);
+  if (invalid) {
+    els.topicInput?.focus();
+  }
+}
+
+async function handleGenerate(event) {
+  event.preventDefault();
+  const form = new FormData(els.generateForm);
+  let payload;
+  try {
+    payload = buildGenerationPayload(form, els);
+    markTopicInvalid(false);
+  } catch (err) {
+    markTopicInvalid(true);
+    log("生成失败", err.message, "bad");
+    return;
+  }
   const useWorkflow = els.workflowInput.checked;
   const manualSteps = Array.from(form.getAll("manual_steps")).map(String);
   const button = els.generateForm.querySelector("button[type='submit']");
@@ -1042,6 +1065,7 @@ function clearRerunsForProblem(problemId) {
 
 function bindEvents() {
   els.generateForm.addEventListener("submit", handleGenerate);
+  els.topicInput.addEventListener("input", () => markTopicInvalid(false));
   els.refreshButton.addEventListener("click", () => loadProblems(false));
   els.problemList.addEventListener("click", (event) => {
     const button = event.target.closest(".problem-item");
