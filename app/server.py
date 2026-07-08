@@ -272,7 +272,7 @@ class Handler(BaseHTTPRequestHandler):
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
             case_input = body.get("input")
-            if not isinstance(case_input, str) or not case_input:
+            if "input" not in body or not isinstance(case_input, str):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "input is required"})
                 return
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))

@@ -1796,6 +1796,35 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertEqual(payload["error"], "timeout_seconds must be a number")
 
+    def test_server_rerun_accepts_empty_string_input(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "print('ok')\n"
+        problem.brute_force_solution = "print('ok')\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "input": "",
+                "timeout_seconds": 1,
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._rerun(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["input"], "")
+            self.assertTrue(payload["passed"])
+
     def test_server_package_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
