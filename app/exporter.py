@@ -15,7 +15,9 @@ def export_problem_package(
     review: ReviewReport,
 ) -> Path:
     raw_package_dir = _direct_package_child(root, problem.id)
-    if raw_package_dir is not None and raw_package_dir.is_symlink():
+    if raw_package_dir is not None and (
+        raw_package_dir.is_symlink() or (raw_package_dir.exists() and not raw_package_dir.is_dir())
+    ):
         raw_package_dir.unlink()
     package_dir = resolve_under(root, problem.id)
     if package_dir is None:
