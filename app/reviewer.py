@@ -110,6 +110,8 @@ def _has_dangerous_node(node: ast.AST, modules: set[str], calls: set[str]) -> bo
             return node.func.id in calls
         if isinstance(node.func, ast.Attribute):
             return node.func.attr in calls
+        if isinstance(node.func, ast.Subscript):
+            return _subscript_key(node.func) in calls
     return False
 
 
@@ -119,6 +121,10 @@ def _module_root(name: str) -> str:
 
 def _string_literal(node: ast.AST) -> str | None:
     return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _subscript_key(node: ast.Subscript) -> str | None:
+    return _string_literal(node.slice)
 
 
 def _check_text_depth(problem: GeneratedProblem, issues: list[ReviewIssue]) -> None:
