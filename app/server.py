@@ -568,7 +568,7 @@ def _package_info(problem_id: str, package_dir: Path) -> dict:
 
 
 def _package_report_status(problem_id: str, package_dir: Path, review: dict | None, validation: dict | None) -> dict | None:
-    if package_dir.exists():
+    if package_dir.is_dir():
         return _package_info(problem_id, package_dir)
     if _reports_block_package(review, validation):
         return {
