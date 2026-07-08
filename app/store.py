@@ -159,7 +159,9 @@ class ReportStore:
         if report_dir.is_symlink() or (report_dir.exists() and not report_dir.is_dir()):
             report_dir.unlink()
         report_dir.mkdir(parents=True, exist_ok=True)
-        (report_dir / name).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        report_path = report_dir / name
+        _replace_invalid_file_path(report_path)
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _read(self, problem_id: str, name: str) -> dict | None:
         try:

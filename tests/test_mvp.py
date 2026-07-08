@@ -790,6 +790,37 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse((outside / "review_report.json").exists())
             self.assertEqual(store.get_review("prob_link")["problem_id"], "prob_link")
 
+    def test_report_store_save_replaces_symlinked_report_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ReportStore(root / "reports")
+            report_dir = store.dir_for("prob_link")
+            report_dir.mkdir(parents=True)
+            outside_report = root / "outside_review.json"
+            outside_report.write_text("external", encoding="utf-8")
+            report_file = report_dir / "review_report.json"
+            report_file.symlink_to(outside_report)
+
+            store.save_review("prob_link", {"problem_id": "prob_link", "passed": True})
+
+            self.assertFalse(report_file.is_symlink())
+            self.assertEqual(outside_report.read_text(encoding="utf-8"), "external")
+            self.assertEqual(store.get_review("prob_link")["problem_id"], "prob_link")
+
+    def test_report_store_save_replaces_report_file_directory_obstacle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ReportStore(Path(tmp))
+            report_dir = store.dir_for("prob_dir")
+            report_dir.mkdir(parents=True)
+            report_file = report_dir / "validation_report.json"
+            report_file.mkdir()
+            (report_file / "stale.txt").write_text("stale", encoding="utf-8")
+
+            store.save_validation("prob_dir", {"problem_id": "prob_dir", "sample_passed": True})
+
+            self.assertTrue(report_file.is_file())
+            self.assertEqual(store.get_validation("prob_dir")["problem_id"], "prob_dir")
+
     def test_report_store_read_ignores_symlinked_report_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
