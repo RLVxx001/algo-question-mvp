@@ -530,6 +530,24 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(problem_store.delete(problem.id))
             self.assertFalse(workflow_store.delete(problem.id))
 
+    def test_problem_and_workflow_store_delete_remove_directory_obstacles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            problem_path = problem_store.path_for("prob_dir")
+            workflow_path = workflow_store.path_for("prob_dir")
+            problem_path.mkdir()
+            workflow_path.mkdir()
+            (problem_path / "stale.txt").write_text("stale", encoding="utf-8")
+            (workflow_path / "stale.txt").write_text("stale", encoding="utf-8")
+
+            self.assertTrue(problem_store.delete("prob_dir"))
+            self.assertTrue(workflow_store.delete("prob_dir"))
+
+            self.assertFalse(problem_path.exists())
+            self.assertFalse(workflow_path.exists())
+
     def test_workflow_store_get_treats_invalid_json_as_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = WorkflowStore(Path(tmp) / "workflows")
@@ -796,6 +814,17 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(report_path.exists())
             store.save_review("prob_file", {"problem_id": "prob_file", "passed": True})
             self.assertEqual(store.get_review("prob_file")["problem_id"], "prob_file")
+
+    def test_report_store_delete_removes_broken_symlink_obstacle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ReportStore(root / "reports")
+            report_path = store.dir_for("prob_link")
+            report_path.symlink_to(root / "missing_report_dir", target_is_directory=True)
+
+            self.assertTrue(store.delete("prob_link"))
+
+            self.assertFalse(report_path.is_symlink())
 
     def test_report_store_save_replaces_file_obstacle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

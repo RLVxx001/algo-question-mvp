@@ -48,10 +48,7 @@ class ProblemStore:
             path = self.path_for(problem_id)
         except ValueError:
             return False
-        if not path.exists():
-            return False
-        path.unlink()
-        return True
+        return _remove_local_path(path)
 
     def path_for(self, problem_id: str) -> Path:
         return self.root / f"{_safe_id(problem_id)}.json"
@@ -112,10 +109,7 @@ class WorkflowStore:
             path = self.path_for(problem_id)
         except ValueError:
             return False
-        if not path.exists():
-            return False
-        path.unlink()
-        return True
+        return _remove_local_path(path)
 
     def path_for(self, problem_id: str) -> Path:
         return self.root / f"{_safe_id(problem_id)}.json"
@@ -143,13 +137,7 @@ class ReportStore:
             report_dir = self.dir_for(problem_id)
         except ValueError:
             return False
-        if not report_dir.exists():
-            return False
-        if report_dir.is_dir() and not report_dir.is_symlink():
-            shutil.rmtree(report_dir)
-        else:
-            report_dir.unlink()
-        return True
+        return _remove_local_path(report_dir)
 
     def dir_for(self, problem_id: str) -> Path:
         return self.root / _safe_id(problem_id)
@@ -198,3 +186,16 @@ def _replace_invalid_file_path(path: Path) -> None:
             shutil.rmtree(path)
         else:
             path.unlink()
+
+
+def _remove_local_path(path: Path) -> bool:
+    if path.is_symlink():
+        path.unlink()
+        return True
+    if not path.exists():
+        return False
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
