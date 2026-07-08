@@ -284,6 +284,50 @@ test("invalidateProblemState clears reports and current problem reruns", () => {
   });
 });
 
+test("operation lock blocks duplicate operations until released", () => {
+  const context = loadAppContext();
+
+  assert.equal(context.beginOperation("review:prob_a"), true);
+  assert.equal(context.beginOperation("review:prob_a"), false);
+  assert.equal(context.isOperationBusy("review:prob_a"), true);
+  context.endOperation("review:prob_a");
+  assert.equal(context.isOperationBusy("review:prob_a"), false);
+  assert.equal(context.beginOperation("review:prob_a"), true);
+});
+
+test("runReview ignores duplicate clicks while request is in flight", async () => {
+  const context = loadAppContext();
+  let resolveReview;
+  let requestCount = 0;
+  const reviewResponse = new Promise((resolve) => {
+    resolveReview = resolve;
+  });
+  context.fetch = async () => {
+    requestCount += 1;
+    await reviewResponse;
+    return {
+      ok: true,
+      json: async () => ({ problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] }),
+    };
+  };
+  context.renderAll = () => {};
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem" };
+      state.activeTab = "reports";
+    `,
+    context,
+  );
+
+  const first = context.runReview();
+  const second = context.runReview();
+
+  assert.equal(requestCount, 1);
+  resolveReview();
+  await Promise.all([first, second]);
+  assert.equal(context.isOperationBusy("review:prob_a"), false);
+});
+
 test("continueWorkflow captures edit patch before rerendering", async () => {
   const context = loadAppContext();
   const originalProblem = {

@@ -7,6 +7,7 @@ const state = {
   reruns: {},
   runtime: null,
   similarity: {},
+  busy: {},
 };
 
 const els = {
@@ -76,6 +77,20 @@ function log(title, message, level = "info") {
 
 function currentProblemId() {
   return state.selected?.id;
+}
+
+function beginOperation(key) {
+  if (state.busy[key]) return false;
+  state.busy[key] = true;
+  return true;
+}
+
+function endOperation(key) {
+  delete state.busy[key];
+}
+
+function isOperationBusy(key) {
+  return Boolean(state.busy[key]);
 }
 
 async function checkHealth() {
@@ -801,6 +816,8 @@ async function rerunFailedCase(index) {
     log("复跑失败", err.message, "bad");
     return;
   }
+  const operationKey = `rerun:${problem.id}:${index}`;
+  if (!beginOperation(operationKey)) return;
   try {
     const data = await api(`/api/problems/${problem.id}/rerun`, {
       method: "POST",
@@ -817,6 +834,8 @@ async function rerunFailedCase(index) {
     log("复跑完成", `passed=${data.passed}`, data.passed ? "ok" : "bad");
   } catch (err) {
     log("复跑失败", err.message, "bad");
+  } finally {
+    endOperation(operationKey);
   }
 }
 
@@ -924,6 +943,8 @@ async function handleGenerate(event) {
   }
   const useWorkflow = els.workflowInput.checked;
   const manualSteps = Array.from(form.getAll("manual_steps")).map(String);
+  const operationKey = "generate";
+  if (!beginOperation(operationKey)) return;
   const button = els.generateForm.querySelector("button[type='submit']");
   button.disabled = true;
   button.innerHTML = `<span class="button-icon">...</span><span>生成中</span>`;
@@ -953,6 +974,7 @@ async function handleGenerate(event) {
   } catch (err) {
     log("生成失败", err.message, "bad");
   } finally {
+    endOperation(operationKey);
     button.disabled = false;
     button.innerHTML = `<span class="button-icon">+</span><span>生成题目</span>`;
   }
@@ -1018,6 +1040,8 @@ async function saveEdit(event) {
     log("编辑未保存", "当前表单没有变化，报告和导出包保持有效。", "info");
     return;
   }
+  const operationKey = `edit:${id}`;
+  if (!beginOperation(operationKey)) return;
   try {
     const problem = await api(`/api/problems/${id}/edit`, {
       method: "POST",
@@ -1035,12 +1059,16 @@ async function saveEdit(event) {
     log("编辑已保存", message, "ok");
   } catch (err) {
     log("编辑失败", err.message, "bad");
+  } finally {
+    endOperation(operationKey);
   }
 }
 
 async function continueWorkflow(includePatch) {
   const id = currentProblemId();
   if (!id) return;
+  const operationKey = `workflow:${id}`;
+  if (!beginOperation(operationKey)) return;
   const previousWorkflow = cloneWorkflow(state.workflows[id]);
   const payload = { confirm_current: true };
   const editForm = document.getElementById("editForm");
@@ -1075,6 +1103,8 @@ async function continueWorkflow(includePatch) {
       renderAll();
     }
     log("流程失败", err.message, "bad");
+  } finally {
+    endOperation(operationKey);
   }
 }
 
@@ -1096,6 +1126,8 @@ function cloneWorkflow(workflow) {
 async function runReview() {
   const id = currentProblemId();
   if (!id) return;
+  const operationKey = `review:${id}`;
+  if (!beginOperation(operationKey)) return;
   setBusy(els.reviewButton, true, "审查中");
   try {
     const data = await api(`/api/problems/${id}/review`, { method: "POST", body: "{}" });
@@ -1105,6 +1137,7 @@ async function runReview() {
   } catch (err) {
     log("审查失败", err.message, "bad");
   } finally {
+    endOperation(operationKey);
     setBusy(els.reviewButton, false, "");
   }
 }
@@ -1121,6 +1154,8 @@ async function runValidate() {
     log("验证失败", err.message, "bad");
     return;
   }
+  const operationKey = `validate:${id}`;
+  if (!beginOperation(operationKey)) return;
   setBusy(els.validateButton, true, "验证中");
   try {
     const data = await api(`/api/problems/${id}/validate`, {
@@ -1133,6 +1168,7 @@ async function runValidate() {
   } catch (err) {
     log("验证失败", err.message, "bad");
   } finally {
+    endOperation(operationKey);
     setBusy(els.validateButton, false, "");
   }
 }
@@ -1149,6 +1185,8 @@ async function runPackage() {
     log("导出失败", err.message, "bad");
     return;
   }
+  const operationKey = `package:${id}`;
+  if (!beginOperation(operationKey)) return;
   setBusy(els.packageButton, true, "导出中");
   try {
     const data = await api(`/api/problems/${id}/package`, {
@@ -1179,6 +1217,7 @@ async function runPackage() {
       log("导出失败", err.message, "bad");
     }
   } finally {
+    endOperation(operationKey);
     setBusy(els.packageButton, false, "");
   }
 }
@@ -1188,6 +1227,8 @@ async function deleteSelectedProblem() {
   if (!problem) return;
   const confirmed = window.confirm(`删除题目「${problem.title}」？导出目录和 ZIP 也会一起删除。`);
   if (!confirmed) return;
+  const operationKey = `delete:${problem.id}`;
+  if (!beginOperation(operationKey)) return;
   setBusy(els.deleteButton, true, "删除中");
   try {
     const data = await api(`/api/problems/${problem.id}`, { method: "DELETE" });
@@ -1202,6 +1243,7 @@ async function deleteSelectedProblem() {
   } catch (err) {
     log("删除失败", err.message, "bad");
   } finally {
+    endOperation(operationKey);
     setBusy(els.deleteButton, false, "");
   }
 }
