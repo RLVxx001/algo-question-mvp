@@ -281,6 +281,39 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertEqual([item["id"] for item in payload["list"]], [problem.id])
 
+    def test_problem_store_get_treats_invalid_problem_file_as_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ProblemStore(Path(tmp) / "problems")
+            store.path_for("prob_bad_json").write_text("{bad", encoding="utf-8")
+            store.path_for("prob_not_object").write_text("[]", encoding="utf-8")
+            store.path_for("prob_missing_fields").write_text(json.dumps({"id": "prob_missing_fields"}), encoding="utf-8")
+
+            for problem_id in ["prob_bad_json", "prob_not_object", "prob_missing_fields"]:
+                with self.subTest(problem_id=problem_id):
+                    with self.assertRaises(KeyError):
+                        store.get(problem_id)
+
+    def test_server_problem_detail_returns_not_found_for_invalid_problem_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ProblemStore(Path(tmp) / "problems")
+            store.path_for("prob_bad").write_text("{bad", encoding="utf-8")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.path = "/api/problems/prob_bad"
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", store):
+                handler.do_GET()
+
+            handler.send_response.assert_called_once_with(404)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "problem not found")
+
     def test_stores_can_delete_problem_and_workflow_files(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))

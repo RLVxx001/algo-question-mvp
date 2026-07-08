@@ -23,7 +23,13 @@ class ProblemStore:
             raise KeyError(problem_id) from exc
         if not path.exists():
             raise KeyError(problem_id)
-        return GeneratedProblem.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("problem data must be an object")
+            return GeneratedProblem.from_dict(data)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise KeyError(problem_id) from exc
 
     def list(self) -> list[GeneratedProblem]:
         problems: list[GeneratedProblem] = []
