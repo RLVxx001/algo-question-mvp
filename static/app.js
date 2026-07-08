@@ -868,7 +868,7 @@ function renderValidationSummary(problem, report) {
 function renderFailedCase(problem, failed, index) {
   const key = `${problem.id}:${index}`;
   const rerun = state.reruns[key];
-  const hasInput = Boolean(failed.input);
+  const hasInput = hasCaseInput(failed);
   const inputTruncated = isTruncatedReportValue(failed.input);
   const rerunBusy = isOperationBusy(`rerun:${problem.id}:${index}`);
   const canRerun = hasInput && !inputTruncated && !rerunBusy;
@@ -953,7 +953,7 @@ function bindReportActions(problem) {
 
 async function copyFailedCase(problem, index) {
   const failed = state.reports[problem.id]?.validation?.failed_cases?.[index];
-  if (!failed?.input) return;
+  if (!hasCaseInput(failed)) return;
   try {
     await navigator.clipboard.writeText(failed.input);
     log("已复制失败输入", `case=${index + 1}`, "ok");
@@ -965,7 +965,7 @@ async function copyFailedCase(problem, index) {
 async function rerunFailedCase(index) {
   const problem = state.selected;
   const failed = state.reports[problem?.id]?.validation?.failed_cases?.[index];
-  if (!problem || !failed?.input) return;
+  if (!problem || !hasCaseInput(failed)) return;
   if (isTruncatedReportValue(failed.input)) {
     log("复跑不可用", "失败输入已被截断，不能代表完整用例。", "warn");
     return;
@@ -1202,6 +1202,10 @@ function rerunOptions(controls = els) {
 
 function isTruncatedReportValue(value) {
   return typeof value === "string" && value.includes(TRUNCATED_REPORT_MARKER);
+}
+
+function hasCaseInput(failed) {
+  return Boolean(failed) && typeof failed.input === "string";
 }
 
 async function saveEdit(event) {

@@ -1120,6 +1120,19 @@ test("renderFailedCase disables rerun button for truncated failed input", () => 
   assert.match(html, /输入已截断/);
 });
 
+test("renderFailedCase enables rerun button for empty failed input", () => {
+  const context = loadAppContext();
+
+  const html = context.renderFailedCase(
+    { id: "prob_a" },
+    { input: "", expected: "1", actual: "0", reason: "wrong answer" },
+    0,
+  );
+
+  assert.match(html, /rerun-case-button"[^>]*>复跑用例/);
+  assert.doesNotMatch(html, /rerun-case-button"[^>]*disabled/);
+});
+
 test("rerunFailedCase skips truncated failed input", async () => {
   const context = loadAppContext();
   const logs = [];
@@ -1159,6 +1172,46 @@ test("rerunFailedCase skips truncated failed input", async () => {
       level: "warn",
     },
   ]);
+});
+
+test("rerunFailedCase sends empty failed input", async () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Problem A",
+    source: "mock",
+    statement_language: "zh",
+  };
+  const validation = {
+    sample_passed: false,
+    fuzz_passed: false,
+    failed_cases: [{ input: "", expected: "1\n", actual: "0\n", reason: "wrong answer" }],
+  };
+  let requestCount = 0;
+
+  context.fetch = async (path, options = {}) => {
+    requestCount += 1;
+    assert.equal(path, "/api/problems/prob_a/rerun");
+    assert.equal(options.method, "POST");
+    assert.deepEqual(JSON.parse(options.body), { input: "", timeout_seconds: 2 });
+    return {
+      ok: true,
+      json: async () => ({ passed: true, expected: "1\n", actual: "1\n" }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.activeTab = "reports";
+      state.reports.prob_a = { validation: ${JSON.stringify(validation)} };
+    `,
+    context,
+  );
+
+  await context.rerunFailedCase(0);
+
+  assert.equal(requestCount, 1);
+  assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
 });
 
 test("rerunFailedCase rerenders after releasing rerun busy state", async () => {
