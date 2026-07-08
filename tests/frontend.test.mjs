@@ -1107,6 +1107,46 @@ test("renderFailedCase disables rerun button while rerun is busy", () => {
   assert.match(html, /复跑中/);
 });
 
+test("rerunFailedCase rerenders after releasing rerun busy state", async () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Problem A",
+    source: "mock",
+    statement_language: "zh",
+  };
+  const validation = {
+    sample_passed: false,
+    fuzz_passed: false,
+    failed_cases: [{ input: "1\n", expected: "1\n", actual: "0\n", reason: "wrong answer" }],
+  };
+
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/rerun");
+    assert.equal(options.method, "POST");
+    assert.deepEqual(JSON.parse(options.body), { input: "1\n", timeout_seconds: 2 });
+    return {
+      ok: true,
+      json: async () => ({ passed: true, expected: "1\n", actual: "1\n" }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.activeTab = "reports";
+      state.reports.prob_a = { validation: ${JSON.stringify(validation)} };
+    `,
+    context,
+  );
+
+  await context.rerunFailedCase(0);
+
+  assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
+  assert.match(context.__elements.detailContent.innerHTML, /复跑：通过/);
+  assert.match(context.__elements.detailContent.innerHTML, /复跑用例/);
+  assert.doesNotMatch(context.__elements.detailContent.innerHTML, /复跑中/);
+});
+
 test("continueWorkflow captures edit patch before rerendering", async () => {
   const context = loadAppContext();
   const originalProblem = {

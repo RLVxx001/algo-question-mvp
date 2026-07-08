@@ -988,6 +988,7 @@ async function rerunFailedCase(index) {
     log("复跑失败", err.message, "bad");
   } finally {
     endOperation(operationKey);
+    renderAll();
   }
 }
 
