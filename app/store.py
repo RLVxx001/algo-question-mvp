@@ -78,7 +78,13 @@ class WorkflowStore:
             raise KeyError(problem_id) from exc
         if not path.exists():
             raise KeyError(problem_id)
-        return ProblemWorkflow.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("workflow data must be an object")
+            return ProblemWorkflow.from_dict(data)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise KeyError(problem_id) from exc
 
     def delete(self, problem_id: str) -> bool:
         try:

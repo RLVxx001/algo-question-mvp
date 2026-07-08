@@ -299,6 +299,37 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(problem_store.delete(problem.id))
             self.assertFalse(workflow_store.delete(problem.id))
 
+    def test_workflow_store_get_treats_invalid_json_as_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = WorkflowStore(Path(tmp) / "workflows")
+            store.path_for("prob_bad").write_text("{bad", encoding="utf-8")
+
+            with self.assertRaises(KeyError):
+                store.get("prob_bad")
+
+    def test_server_workflow_endpoint_returns_not_found_for_invalid_workflow_file(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow_store = WorkflowStore(root / "workflows")
+            workflow_store.path_for(problem.id).write_text("{bad", encoding="utf-8")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.WORKFLOW_STORE", workflow_store):
+                handler._workflow(problem.id)
+
+            handler.send_response.assert_called_once_with(404)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "workflow not found")
+
     def test_stores_reject_problem_ids_that_would_sanitize_to_existing_files(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.id = "probx"
