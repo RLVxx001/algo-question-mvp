@@ -475,7 +475,7 @@ def _runtime_info() -> dict:
         "ok": True,
         "server": {
             "host": os.getenv("ALGO_HOST", "127.0.0.1"),
-            "port": int(os.getenv("ALGO_PORT", "18081")),
+            "port": _parse_server_port(os.getenv("ALGO_PORT", "18081")),
         },
         "llm": {
             "configured": llm_configured,
@@ -680,9 +680,24 @@ def _public_workflow_result(result: dict) -> dict:
     return {key: value for key, value in result.items() if key != "problem"}
 
 
+def _parse_server_port(value: object) -> int:
+    if not isinstance(value, str):
+        raise ValueError("ALGO_PORT must be an integer")
+    text = value.strip()
+    if not text.isdigit():
+        raise ValueError("ALGO_PORT must be an integer")
+    port = int(text)
+    if port < 1 or port > 65535:
+        raise ValueError("ALGO_PORT must be between 1 and 65535")
+    return port
+
+
 def main() -> None:
     host = os.getenv("ALGO_HOST", "127.0.0.1")
-    port = int(os.getenv("ALGO_PORT", "18081"))
+    try:
+        port = _parse_server_port(os.getenv("ALGO_PORT", "18081"))
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"algo-question-mvp listening on http://{host}:{port}")
     httpd.serve_forever()

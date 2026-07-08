@@ -203,6 +203,34 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(payload["llm"]["active_mode"], "template")
         self.assertEqual(payload["llm"]["fallback_source"], "mock")
 
+    def test_server_port_parser_accepts_valid_integer_ports(self) -> None:
+        from app.server import _parse_server_port
+
+        self.assertEqual(_parse_server_port("18081"), 18081)
+        self.assertEqual(_parse_server_port(" 8080 "), 8080)
+        self.assertEqual(_parse_server_port("65535"), 65535)
+
+    def test_server_port_parser_rejects_invalid_ports(self) -> None:
+        from app.server import _parse_server_port
+
+        cases = [
+            ("many", "ALGO_PORT must be an integer"),
+            ("1.5", "ALGO_PORT must be an integer"),
+            ("0", "ALGO_PORT must be between 1 and 65535"),
+            ("65536", "ALGO_PORT must be between 1 and 65535"),
+        ]
+        for value, message in cases:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, message):
+                    _parse_server_port(value)
+
+    def test_main_reports_invalid_port_configuration_without_traceback(self) -> None:
+        from app.server import main
+
+        with patch.dict("os.environ", {"ALGO_PORT": "many"}, clear=False):
+            with self.assertRaisesRegex(SystemExit, "ALGO_PORT must be an integer"):
+                main()
+
     def test_similarity_finds_duplicate_problem_candidates(self) -> None:
         base = generate_problem(ProblemRequest(topic="array", use_llm=False))
         duplicate = generate_problem(ProblemRequest(topic="array", use_llm=False))
