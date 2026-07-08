@@ -179,7 +179,9 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json(default={})
             invalidated = {"reports_invalidated": False, "package_invalidated": False}
             changed = False
-            if isinstance(body.get("patch"), dict):
+            if "patch" in body:
+                if not isinstance(body["patch"], dict):
+                    raise ValueError("patch must be an object")
                 original = problem.to_dict()
                 problem = apply_problem_patch(problem, body["patch"])
                 changed = problem.to_dict() != original

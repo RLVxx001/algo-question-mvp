@@ -254,6 +254,21 @@ def main() -> int:
         )
     else:
         raise AssertionError("invalid workflow confirmation flag unexpectedly succeeded")
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/workflow/continue",
+            {"confirm_current": True, "patch": "bad"},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "invalid workflow patch shape returns 400")
+        _assert(
+            body["error"] == "patch must be an object",
+            "invalid workflow patch shape has clear error",
+        )
+    else:
+        raise AssertionError("invalid workflow patch shape unexpectedly succeeded")
     continued = _post_json(
         f"{base_url}/api/problems/{problem_id}/workflow/continue",
         {
