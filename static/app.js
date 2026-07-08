@@ -1394,7 +1394,7 @@ async function runPackage() {
       validation: data.validation,
       package: { package_dir: data.package_dir, download_url: data.download_url },
     });
-    showReportsTab();
+    if (currentProblemId() === id) showReportsTab();
     log("导出完成", data.package_dir, "ok");
   } catch (err) {
     if (err.payload?.package_blocked) {
@@ -1406,7 +1406,7 @@ async function runPackage() {
           error: err.payload.error,
         },
       });
-      showReportsTab();
+      if (currentProblemId() === id) showReportsTab();
       log("导出被阻止", "审查或验证未通过，报告已更新。", "warn");
     } else {
       log("导出失败", err.message, "bad");

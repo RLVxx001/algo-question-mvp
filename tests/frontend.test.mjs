@@ -1104,6 +1104,108 @@ test("runPackage switches to reports after successful export", async () => {
   assert.equal(vm.runInContext("state.activeTab", context), "reports");
 });
 
+test("finishing stale package export does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const review = { problem_id: "prob_a", passed: true, score: 95, issues: [], checks: [] };
+  const validation = {
+    problem_id: "prob_a",
+    sample_passed: true,
+    fuzz_passed: true,
+    total_cases: 102,
+    failed_cases: [],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return {
+      ok: true,
+      json: async () => ({
+        problem_id: "prob_a",
+        package_blocked: false,
+        package_dir: "data/packages/prob_a",
+        download_url: "/api/problems/prob_a/package/download",
+        review,
+        validation,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runPackage();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.package", context)), {
+    package_dir: "data/packages/prob_a",
+    download_url: "/api/problems/prob_a/package/download",
+  });
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(context.isOperationBusy("package:prob_a"), false);
+});
+
+test("finishing stale blocked package export does not switch current problem to reports", async () => {
+  const context = loadAppContext();
+  const review = { problem_id: "prob_a", passed: false, score: 65, issues: [], checks: [] };
+  const validation = {
+    problem_id: "prob_a",
+    sample_passed: true,
+    fuzz_passed: true,
+    total_cases: 102,
+    failed_cases: [],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async () => {
+    vm.runInContext(
+      `
+        state.selected = { id: "prob_b", title: "Problem B" };
+        state.activeTab = "statement";
+      `,
+      context,
+    );
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({
+        problem_id: "prob_a",
+        package_blocked: true,
+        error: "package blocked by failed review or validation",
+        review,
+        validation,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runPackage();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.package", context)), {
+    package_blocked: true,
+    error: "package blocked by failed review or validation",
+  });
+  assert.equal(vm.runInContext("state.selected.id", context), "prob_b");
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(context.isOperationBusy("package:prob_a"), false);
+});
+
 test("renderAll keeps selected problem action buttons disabled while operations are busy", () => {
   const context = loadAppContext();
   vm.runInContext(
