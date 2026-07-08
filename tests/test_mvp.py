@@ -13,7 +13,7 @@ from app.models import GeneratedProblem, ProblemRequest
 from app.reviewer import review_problem
 from app.store import ProblemStore, ReportStore, WorkflowStore
 from app.validator import rerun_case, validate_problem
-from app.workflow import create_workflow
+from app.workflow import apply_problem_patch, create_workflow
 
 
 class AlgorithmQuestionMVPTest(unittest.TestCase):
@@ -261,6 +261,54 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertTrue(body["reports_invalidated"])
             self.assertTrue(body["package_invalidated"])
+
+    def test_problem_patch_normalizes_samples_and_solution_code(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        edited = apply_problem_patch(
+            problem,
+            {
+                "samples": [
+                    {"input": 123, "output": 456, "note": "ignored"},
+                    {"input": "7 8\n", "output": "15\n"},
+                ],
+                "reference_solution": 100,
+            },
+        )
+
+        self.assertEqual(
+            edited.samples,
+            [
+                {"input": "123", "output": "456"},
+                {"input": "7 8\n", "output": "15\n"},
+            ],
+        )
+        self.assertEqual(edited.reference_solution, "100")
+
+    def test_server_edit_rejects_invalid_samples_without_saving(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        original_samples = list(problem.samples)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"patch": {"samples": [{"input": "1 2\n"}]}}
+
+            with patch("app.server.STORE", problem_store):
+                handler._edit_problem(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            self.assertEqual(problem_store.get(problem.id).samples, original_samples)
+            body = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertIn("samples", body["error"])
 
     def test_statement_language_defaults_to_chinese_and_can_use_english(self) -> None:
         zh_problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

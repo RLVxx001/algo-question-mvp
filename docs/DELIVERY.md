@@ -48,12 +48,13 @@ python3 -m scripts.smoke --base-url http://127.0.0.1:18081 --include-llm
 ## 人工验收流程
 
 1. 调 `/api/problems/generate` 生成题目。
-2. 调 `/api/problems/{id}/review` 看静态质量。
-3. 调 `/api/problems/{id}/validate` 做对拍。
-4. 调 `/api/problems/{id}/package` 导出题目包。
-5. 调 `/api/problems/{id}/package/download` 下载 ZIP，或在前端报告页点击“下载 ZIP”。
-6. 打开导出目录或 ZIP 里的 `problem.md`、`validation_report.json`、`review_report.json` 做最终确认。
-7. 如果是演示或 smoke 产生的临时题目，调 `DELETE /api/problems/{id}` 清理题目、流程记录、持久化报告和导出文件。
+2. 如需人工修正，在前端编辑页或 `/api/problems/{id}/edit` 修改题面、样例、题解或代码；编辑后需要重新审查、验证和导出。
+3. 调 `/api/problems/{id}/review` 看静态质量。
+4. 调 `/api/problems/{id}/validate` 做对拍。
+5. 调 `/api/problems/{id}/package` 导出题目包。
+6. 调 `/api/problems/{id}/package/download` 下载 ZIP，或在前端报告页点击“下载 ZIP”。
+7. 打开导出目录或 ZIP 里的 `problem.md`、`validation_report.json`、`review_report.json` 做最终确认。
+8. 如果是演示或 smoke 产生的临时题目，调 `DELETE /api/problems/{id}` 清理题目、流程记录、持久化报告和导出文件。
 
 ## 发布前必须补的能力
 

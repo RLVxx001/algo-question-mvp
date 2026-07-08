@@ -162,11 +162,24 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     _assert("problem.md" in names, "package zip contains problem.md")
     _assert("validation_report.json" in names, "package zip contains validation report")
 
+    edited_samples = [
+        {"input": "1 2\n1\n", "output": "0\n"},
+        {"input": "2 3\n1 2\n", "output": "1\n"},
+    ]
+    edited_reference = f"{problem['reference_solution'].rstrip()}\n# edited in smoke\n"
     edited = _post_json(
         f"{base_url}/api/problems/{problem_id}/edit",
-        {"patch": {"title": f"{problem['title']} edited"}},
+        {
+            "patch": {
+                "title": f"{problem['title']} edited",
+                "samples": edited_samples,
+                "reference_solution": edited_reference,
+            }
+        },
         timeout=30,
     )
+    _assert(edited["samples"] == edited_samples, "edit endpoint saved sample changes")
+    _assert(edited["reference_solution"] == edited_reference, "edit endpoint saved reference solution changes")
     _assert(edited["reports_invalidated"] is True, "edit invalidated stored reports")
     _assert(edited["package_invalidated"] is True, "edit invalidated package artifacts")
     invalidated_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
@@ -179,6 +192,20 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
         _assert(exc.code == 404, "package download returns 404 after edit")
     else:
         raise AssertionError("package download still succeeds after edit")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/edit",
+            {"patch": {"samples": [{"input": "missing output\n"}]}},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        _assert(exc.code == 400, "invalid sample patch returns 400")
+    else:
+        raise AssertionError("invalid sample patch unexpectedly succeeded")
+
+    after_invalid_edit = _get_json(f"{base_url}/api/problems/{problem_id}")
+    _assert(after_invalid_edit["samples"] == edited_samples, "invalid sample patch did not overwrite samples")
 
     _assert_deleted(base_url, problem_id)
     return problem_id

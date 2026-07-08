@@ -149,10 +149,60 @@ def apply_problem_patch(problem: GeneratedProblem, patch: dict) -> GeneratedProb
         "brute_force_solution",
         "generator_code",
     }
+    string_fields = {
+        "title",
+        "statement",
+        "input_format",
+        "output_format",
+        "solution_explanation",
+        "reference_solution",
+        "brute_force_solution",
+        "generator_code",
+    }
+    list_fields = {"constraints", "tags"}
+    updates = {}
     for key, value in patch.items():
-        if key in allowed:
-            setattr(problem, key, value)
+        if key not in allowed:
+            continue
+        if key in string_fields:
+            updates[key] = _string_or_empty(value)
+        elif key in list_fields:
+            updates[key] = _normalize_string_list(key, value)
+        elif key == "samples":
+            updates[key] = _normalize_samples(value)
+    for key, value in updates.items():
+        setattr(problem, key, value)
     return problem
+
+
+def _string_or_empty(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _normalize_string_list(field: str, value: object) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a list")
+    return [item for item in (_string_or_empty(item).strip() for item in value) if item]
+
+
+def _normalize_samples(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise ValueError("samples must be a list")
+    samples = []
+    for index, sample in enumerate(value, 1):
+        if not isinstance(sample, dict):
+            raise ValueError(f"samples[{index}] must be an object")
+        if "input" not in sample or "output" not in sample:
+            raise ValueError(f"samples[{index}] must include input and output")
+        samples.append(
+            {
+                "input": _string_or_empty(sample["input"]),
+                "output": _string_or_empty(sample["output"]),
+            }
+        )
+    return samples
 
 
 def _first_incomplete_step(workflow: ProblemWorkflow) -> WorkflowStep | None:

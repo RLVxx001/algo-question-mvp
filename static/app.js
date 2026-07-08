@@ -313,8 +313,23 @@ function renderEdit(problem) {
       <label><span>输入格式</span><textarea name="input_format">${escapeHtml(problem.input_format)}</textarea></label>
       <label><span>输出格式</span><textarea name="output_format">${escapeHtml(problem.output_format)}</textarea></label>
       <label><span>约束，每行一条</span><textarea name="constraints">${escapeHtml(problem.constraints.join("\n"))}</textarea></label>
+      <section class="edit-section">
+        <div class="edit-section-heading">
+          <h4>样例</h4>
+          <button id="addSampleButton" class="secondary-button compact-button" type="button">
+            <span class="button-icon">+</span>
+            <span>添加样例</span>
+          </button>
+        </div>
+        <div id="sampleEditor" class="sample-editor">
+          ${renderSampleEditors(problem.samples || [])}
+        </div>
+      </section>
       <label><span>标签，每行一个</span><textarea name="tags">${escapeHtml((problem.tags || []).join("\n"))}</textarea></label>
       <label><span>题解</span><textarea name="solution_explanation">${escapeHtml(problem.solution_explanation)}</textarea></label>
+      <label class="code-field"><span>标准解 Python</span><textarea name="reference_solution" spellcheck="false">${escapeHtml(problem.reference_solution)}</textarea></label>
+      <label class="code-field"><span>暴力解 Python</span><textarea name="brute_force_solution" spellcheck="false">${escapeHtml(problem.brute_force_solution)}</textarea></label>
+      <label class="code-field"><span>数据生成器 Python</span><textarea name="generator_code" spellcheck="false">${escapeHtml(problem.generator_code)}</textarea></label>
       <div class="toolbar">
         <button class="primary-button" type="submit"><span class="button-icon">S</span><span>保存编辑</span></button>
         <button id="saveAndContinueButton" class="secondary-button" type="button"><span class="button-icon">></span><span>保存并继续流程</span></button>
@@ -323,6 +338,67 @@ function renderEdit(problem) {
   `;
   document.getElementById("editForm").addEventListener("submit", saveEdit);
   document.getElementById("saveAndContinueButton").addEventListener("click", () => continueWorkflow(true));
+  bindSampleEditor();
+}
+
+function renderSampleEditors(samples) {
+  const rows = samples.length ? samples : [{ input: "", output: "" }];
+  return rows.map((sample, index) => renderSampleEditor(sample, index)).join("");
+}
+
+function renderSampleEditor(sample, index) {
+  return `
+    <article class="sample-editor-card" data-sample-card>
+      <div class="sample-editor-heading">
+        <strong data-sample-title>样例 ${index + 1}</strong>
+        <button class="secondary-button compact-button remove-sample-button" type="button">
+          <span class="button-icon">-</span>
+          <span>移除</span>
+        </button>
+      </div>
+      <div class="sample-editor-grid">
+        <label><span>输入</span><textarea name="sample_input">${escapeHtml(sample.input ?? "")}</textarea></label>
+        <label><span>输出</span><textarea name="sample_output">${escapeHtml(sample.output ?? "")}</textarea></label>
+      </div>
+    </article>
+  `;
+}
+
+function bindSampleEditor() {
+  document.getElementById("addSampleButton")?.addEventListener("click", () => {
+    const sampleEditor = document.getElementById("sampleEditor");
+    if (!sampleEditor) return;
+    const index = sampleEditor.querySelectorAll("[data-sample-card]").length;
+    sampleEditor.insertAdjacentHTML("beforeend", renderSampleEditor({ input: "", output: "" }, index));
+    bindSampleRemoveButtons();
+  });
+  bindSampleRemoveButtons();
+}
+
+function bindSampleRemoveButtons() {
+  document.querySelectorAll(".remove-sample-button").forEach((button) => {
+    button.onclick = () => {
+      const sampleEditor = document.getElementById("sampleEditor");
+      const card = button.closest("[data-sample-card]");
+      if (!sampleEditor || !card) return;
+      const cards = sampleEditor.querySelectorAll("[data-sample-card]");
+      if (cards.length <= 1) {
+        card.querySelectorAll("textarea").forEach((textarea) => {
+          textarea.value = "";
+        });
+      } else {
+        card.remove();
+      }
+      renumberSampleCards();
+    };
+  });
+}
+
+function renumberSampleCards() {
+  document.querySelectorAll("#sampleEditor [data-sample-card]").forEach((card, index) => {
+    const title = card.querySelector("[data-sample-title]");
+    if (title) title.textContent = `样例 ${index + 1}`;
+  });
 }
 
 function statusLabel(status) {
@@ -649,6 +725,11 @@ function workflowEventSummary(result) {
 }
 
 function problemPatchFromEditForm(form) {
+  const sampleInputs = form.getAll("sample_input").map(String);
+  const sampleOutputs = form.getAll("sample_output").map(String);
+  const samples = sampleInputs
+    .map((input, index) => ({ input, output: sampleOutputs[index] || "" }))
+    .filter((sample) => sample.input.trim() || sample.output.trim());
   return {
     title: String(form.get("title") || ""),
     statement: String(form.get("statement") || ""),
@@ -658,11 +739,15 @@ function problemPatchFromEditForm(form) {
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean),
+    samples,
     tags: String(form.get("tags") || "")
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean),
     solution_explanation: String(form.get("solution_explanation") || ""),
+    reference_solution: String(form.get("reference_solution") || ""),
+    brute_force_solution: String(form.get("brute_force_solution") || ""),
+    generator_code: String(form.get("generator_code") || ""),
   };
 }
 

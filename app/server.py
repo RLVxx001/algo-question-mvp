@@ -184,6 +184,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem or workflow not found"})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except ValidationError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
@@ -205,6 +207,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, payload)
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 

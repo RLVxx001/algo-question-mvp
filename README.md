@@ -84,10 +84,10 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/reports
 ```bash
 curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/edit \
   -H 'Content-Type: application/json' \
-  -d '{"patch":{"title":"新的标题"}}'
+  -d '{"patch":{"title":"新的标题","samples":[{"input":"3 5\n1 2 3\n","output":"2\n"}]}}'
 ```
 
-编辑会使旧审查报告、旧验证报告、导出目录和 ZIP 失效；需要重新审查、验证和导出。
+编辑支持题面、约束、样例、标签、题解、标准解、暴力解和数据生成器。样例必须包含 `input` 和 `output`；不合法补丁会返回 `400` 且不会覆盖原题。编辑会使旧审查报告、旧验证报告、导出目录和 ZIP 失效；需要重新审查、验证和导出。
 
 ## 审查题目
 

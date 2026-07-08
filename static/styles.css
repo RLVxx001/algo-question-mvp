@@ -596,6 +596,61 @@ select {
   resize: vertical;
 }
 
+.edit-section {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.edit-section-heading,
+.sample-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edit-section-heading h4 {
+  margin: 0;
+}
+
+.compact-button {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.sample-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.sample-editor-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.sample-editor-heading strong {
+  font-size: 14px;
+}
+
+.sample-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.code-field textarea {
+  min-height: 180px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .sample-grid {
   display: grid;
   gap: 12px;
@@ -837,7 +892,8 @@ pre {
 
   .status-grid,
   .code-split,
-  .summary-grid {
+  .summary-grid,
+  .sample-editor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -851,6 +907,7 @@ pre {
   .status-grid,
   .code-split,
   .summary-grid,
+  .sample-editor-grid,
   .issue {
     grid-template-columns: 1fr;
   }
