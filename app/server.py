@@ -577,7 +577,7 @@ def _remove_package_artifacts(problem_id: str) -> bool:
 
 def _problem_request_from_body(body: dict) -> ProblemRequest:
     return ProblemRequest(
-        topic=_parse_topic(body.get("topic", "array")),
+        topic=_parse_topic(body.get("topic")),
         difficulty=_parse_difficulty(body.get("difficulty", "easy")),
         language=_parse_code_language(body.get("language", "python")),
         statement_language=_parse_statement_language(body.get("statement_language", body.get("natural_language", "zh"))),
