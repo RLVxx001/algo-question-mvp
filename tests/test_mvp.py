@@ -684,6 +684,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "use_llm must be a boolean"):
             _problem_request_from_body({"topic": "array", "use_llm": "maybe"})
 
+    def test_problem_request_parser_normalizes_statement_language_aliases(self) -> None:
+        from app.server import _problem_request_from_body
+
+        english = _problem_request_from_body({"topic": "array", "statement_language": "english"})
+        chinese = _problem_request_from_body({"topic": "array", "statement_language": "中文"})
+
+        self.assertEqual(english.statement_language, "en")
+        self.assertEqual(chinese.statement_language, "zh")
+
+    def test_problem_request_parser_rejects_unsupported_statement_language(self) -> None:
+        from app.server import _problem_request_from_body
+
+        with self.assertRaisesRegex(ValueError, "statement_language must be zh or en"):
+            _problem_request_from_body({"topic": "array", "statement_language": "fr"})
+
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

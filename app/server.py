@@ -550,10 +550,21 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
         topic=str(body.get("topic", "array")),
         difficulty=str(body.get("difficulty", "easy")),
         language=str(body.get("language", "python")),
-        statement_language=str(body.get("statement_language", body.get("natural_language", "zh"))),
+        statement_language=_parse_statement_language(body.get("statement_language", body.get("natural_language", "zh"))),
         count=int(body.get("count", DEFAULT_GENERATION_COUNT)),
         use_llm=_parse_bool(body.get("use_llm", True), "use_llm"),
     )
+
+
+def _parse_statement_language(value: object) -> str:
+    if value is None:
+        return "zh"
+    normalized = str(value).strip().lower()
+    if normalized in {"zh", "cn", "chinese", "中文", "汉语"}:
+        return "zh"
+    if normalized in {"en", "english"}:
+        return "en"
+    raise ValueError("statement_language must be zh or en")
 
 
 def _parse_bool(value: object, field: str) -> bool:

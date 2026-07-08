@@ -67,6 +67,38 @@ def main() -> int:
     _assert_deleted(base_url, string_false_problem["id"])
     results.append(f"string boolean ok: {string_false_problem['id']}")
 
+    english_alias_problem = _post_json(
+        f"{base_url}/api/problems/generate",
+        {
+            "topic": "array",
+            "difficulty": "easy",
+            "count": 1,
+            "statement_language": "english",
+            "use_llm": False,
+        },
+        timeout=30,
+    )["list"][0]
+    _assert(english_alias_problem["statement_language"] == "en", "english language alias normalizes to en")
+    _assert("Given" in english_alias_problem["statement"], "english alias returns English statement")
+    _assert_deleted(base_url, english_alias_problem["id"])
+    results.append(f"language alias ok: {english_alias_problem['id']}")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/generate",
+            {"topic": "array", "statement_language": "fr", "use_llm": False},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "unsupported statement language returns 400")
+        _assert(
+            body["error"] == "statement_language must be zh or en",
+            "unsupported statement language has clear error",
+        )
+    else:
+        raise AssertionError("unsupported statement language unexpectedly succeeded")
+
     workflow = _post_json(
         f"{base_url}/api/workflows/start",
         {
