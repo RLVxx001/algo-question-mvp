@@ -328,6 +328,70 @@ test("runReview ignores duplicate clicks while request is in flight", async () =
   assert.equal(context.isOperationBusy("review:prob_a"), false);
 });
 
+test("renderAll keeps selected problem action buttons disabled while operations are busy", () => {
+  const context = loadAppContext();
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem" };
+      state.activeTab = "reports";
+      state.busy = {
+        "review:prob_a": true,
+        "validate:prob_a": true,
+        "package:prob_a": true,
+        "delete:prob_a": true
+      };
+    `,
+    context,
+  );
+
+  context.renderAll();
+
+  assert.equal(context.__elements.reviewButton.disabled, true);
+  assert.equal(context.__elements.validateButton.disabled, true);
+  assert.equal(context.__elements.packageButton.disabled, true);
+  assert.equal(context.__elements.deleteButton.disabled, true);
+});
+
+test("renderWorkflow disables continue button while workflow operation is busy", () => {
+  const context = loadAppContext();
+  let continueButton = null;
+  context.document.getElementById = (id) => {
+    if (id === "continueWorkflowButton") {
+      continueButton = { addEventListener() {} };
+      return continueButton;
+    }
+    return context.__elements[id] || (context.__elements[id] = {
+      classList: { toggle() {} },
+      dataset: {},
+      disabled: false,
+      innerHTML: "",
+      textContent: "",
+      addEventListener() {},
+      prepend() {},
+      querySelector() {
+        return { dataset: {}, disabled: false, innerHTML: "" };
+      },
+    });
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem" };
+      state.workflows.prob_a = {
+        problem_id: "prob_a",
+        status: "waiting_user",
+        current_step: "statement",
+        steps: [{ key: "statement", name: "题面", status: "waiting_user", mode: "manual", summary: "待确认" }]
+      };
+      state.busy["workflow:prob_a"] = true;
+    `,
+    context,
+  );
+
+  context.renderWorkflow(vm.runInContext("state.selected", context));
+
+  assert.match(context.__elements.detailContent.innerHTML, /continueWorkflowButton[\s\S]*disabled/);
+});
+
 test("continueWorkflow captures edit patch before rerendering", async () => {
   const context = loadAppContext();
   const originalProblem = {

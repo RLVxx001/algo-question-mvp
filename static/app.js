@@ -93,6 +93,10 @@ function isOperationBusy(key) {
   return Boolean(state.busy[key]);
 }
 
+function isProblemOperationBusy(action, problemId) {
+  return Boolean(problemId && isOperationBusy(`${action}:${problemId}`));
+}
+
 async function checkHealth() {
   try {
     await api("/healthz");
@@ -274,11 +278,12 @@ function filteredProblems() {
 function renderAll() {
   const problem = state.selected;
   const hasProblem = Boolean(problem);
+  const problemId = problem?.id;
   els.currentTitle.textContent = problem?.title || "等待选择题目";
-  els.reviewButton.disabled = !hasProblem;
-  els.validateButton.disabled = !hasProblem;
-  els.packageButton.disabled = !hasProblem;
-  els.deleteButton.disabled = !hasProblem;
+  els.reviewButton.disabled = !hasProblem || isProblemOperationBusy("review", problemId);
+  els.validateButton.disabled = !hasProblem || isProblemOperationBusy("validate", problemId);
+  els.packageButton.disabled = !hasProblem || isProblemOperationBusy("package", problemId);
+  els.deleteButton.disabled = !hasProblem || isProblemOperationBusy("delete", problemId);
   els.llmMetric.textContent = runtimeModeLabel(state.runtime?.llm);
   renderMetrics();
   renderProblemList();
@@ -394,13 +399,14 @@ function renderWorkflow(problem) {
     )
     .join("");
   const waiting = workflow.status === "waiting_user";
+  const busy = isProblemOperationBusy("workflow", problem.id);
   els.detailContent.innerHTML = `
     <h3>分步流程</h3>
     <p>状态：${escapeHtml(statusLabel(workflow.status))}，当前：${escapeHtml(workflow.current_step)}</p>
     <div class="workflow-steps">${steps}</div>
-    <button id="continueWorkflowButton" class="primary-button" type="button" ${waiting ? "" : "disabled"}>
+    <button id="continueWorkflowButton" class="primary-button" type="button" ${waiting && !busy ? "" : "disabled"}>
       <span class="button-icon">></span>
-      <span>${waiting ? "确认当前步骤并继续" : "当前无需确认"}</span>
+      <span>${busy ? "流程处理中" : waiting ? "确认当前步骤并继续" : "当前无需确认"}</span>
     </button>
   `;
   const button = document.getElementById("continueWorkflowButton");
