@@ -1668,6 +1668,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         )
         self.assertFalse(review.passed)
 
+    def test_review_flags_pathlib_file_access(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.generator_code = "from pathlib import Path\nPath('out.txt').write_text('x')\nprint('1 1')\nprint('1')\n"
+
+        review = review_problem(problem)
+
+        self.assertTrue(
+            any(
+                issue.field == "generator_code" and issue.severity == "error" and "dangerous" in issue.message
+                for issue in review.issues
+            ),
+            review.to_dict(),
+        )
+        self.assertFalse(review.passed)
+
     def test_review_warns_about_weak_constraints_and_missing_seed(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.constraints = ["values are valid"]
