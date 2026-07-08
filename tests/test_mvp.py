@@ -104,6 +104,29 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             with zipfile.ZipFile(Path(tmp) / f"{problem.id}.zip") as archive:
                 self.assertIn("problem.md", archive.namelist())
 
+    def test_server_static_rejects_sibling_directory_with_same_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            static_root = root / "static"
+            static_root.mkdir()
+            sibling_root = root / "static_evil"
+            sibling_root.mkdir()
+            (sibling_root / "secret.txt").write_text("secret", encoding="utf-8")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STATIC_ROOT", static_root):
+                handler._static("../static_evil/secret.txt")
+
+            handler.send_response.assert_called_once_with(404)
+            self.assertIn(b"static file not found", handler.wfile.write.call_args.args[0])
+
     def test_runtime_endpoint_reports_llm_configuration_without_secret(self) -> None:
         from app.server import Handler
 

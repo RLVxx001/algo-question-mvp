@@ -432,8 +432,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _static(self, name: str) -> None:
         safe_name = name.strip("/")
-        path = (STATIC_ROOT / safe_name).resolve()
-        if not str(path).startswith(str(STATIC_ROOT.resolve())) or not path.exists() or path.is_dir():
+        path = _safe_static_path(safe_name)
+        if path is None or not path.exists() or path.is_dir():
             self._json(HTTPStatus.NOT_FOUND, {"error": "static file not found"})
             return
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
@@ -443,6 +443,16 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _safe_static_path(name: str) -> Path | None:
+    root = STATIC_ROOT.resolve()
+    path = (root / name).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
 
 
 def _summary(problem) -> dict:
