@@ -1367,6 +1367,18 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(report.first_failed_seed, 0)
         self.assertEqual(report.failure_stage, "compare")
 
+    def test_validation_report_records_sample_reference_runtime_failure(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "raise RuntimeError('boom')\n"
+
+        report = validate_problem(problem, rounds=0, timeout_seconds=1.0)
+
+        self.assertFalse(report.sample_passed)
+        self.assertEqual(report.failure_stage, "sample")
+        self.assertEqual(report.failed_cases[0].index, 1)
+        self.assertIn("sample reference failed", report.failed_cases[0].reason)
+        self.assertIn("RuntimeError", report.failed_cases[0].reason)
+
     def test_rerun_case_reports_compare_failure(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "print(0)\n"
@@ -1542,6 +1554,38 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "difficulty must be easy, medium, or hard"):
             _problem_request_from_body({"topic": "array", "difficulty": "expert"})
+
+    def test_server_validate_returns_report_for_sample_runtime_failure(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "raise RuntimeError('boom')\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": 1, "timeout_seconds": 1}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+            ):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertFalse(payload["sample_passed"])
+            self.assertEqual(payload["failure_stage"], "sample")
+            self.assertIn("sample reference failed", payload["failed_cases"][0]["reason"])
+            self.assertIsNotNone(report_store.get_validation(problem.id))
 
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

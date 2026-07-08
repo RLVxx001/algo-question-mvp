@@ -30,8 +30,22 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
         gen_path.write_text(problem.generator_code, encoding="utf-8")
 
         for idx, sample in enumerate(problem.samples, 1):
-            actual = _run_python(ref_path, sample["input"], timeout_seconds)
             expected = sample["output"].strip()
+            try:
+                actual = _run_python(ref_path, sample["input"], timeout_seconds)
+            except ValidationError as exc:
+                failure_stage = failure_stage or "sample"
+                failed.append(
+                    ValidationCaseResult(
+                        index=idx,
+                        input=sample["input"],
+                        expected=expected,
+                        actual="",
+                        passed=False,
+                        reason=f"sample reference failed: {exc}",
+                    )
+                )
+                continue
             passed = actual.strip() == expected
             if not passed:
                 failure_stage = failure_stage or "sample"
@@ -54,7 +68,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
             except ValidationError as exc:
                 fuzz_passed = False
                 first_failed_seed = seed
-                failure_stage = "generator"
+                failure_stage = failure_stage or "generator"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -71,7 +85,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
             except ValidationError as exc:
                 fuzz_passed = False
                 first_failed_seed = seed
-                failure_stage = "brute_force"
+                failure_stage = failure_stage or "brute_force"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -88,7 +102,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
             except ValidationError as exc:
                 fuzz_passed = False
                 first_failed_seed = seed
-                failure_stage = "reference"
+                failure_stage = failure_stage or "reference"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -103,7 +117,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
             if actual.strip() != expected.strip():
                 fuzz_passed = False
                 first_failed_seed = seed
-                failure_stage = "compare"
+                failure_stage = failure_stage or "compare"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
