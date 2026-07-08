@@ -265,6 +265,7 @@ def main() -> int:
         timeout=60,
     )
     _assert(continued["workflow"]["status"] == "completed", "workflow completes after confirmation")
+    _assert(continued["changed"] is True, "workflow patch reports changed")
     _assert(continued["problem"]["title"].endswith("（改）"), "workflow patch was saved")
     _assert(continued["problem"]["constraints"], "constraints generated after confirmation")
     _assert(continued["problem"]["reference_solution"], "reference solution generated after confirmation")

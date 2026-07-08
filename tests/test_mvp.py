@@ -573,6 +573,57 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertEqual(payload["error"], "confirm_current must be a boolean")
 
+    def test_server_workflow_continue_patch_invalidates_reports_and_package_artifacts(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement"])
+        workflow, result = advance_workflow(workflow, problem, Path(tempfile.gettempdir()) / "packages")
+        problem = result["problem"]
+        review = review_problem(problem)
+        validation = validate_problem(problem, rounds=3)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+            report_store.save_review(problem.id, review.to_dict())
+            report_store.save_validation(problem.id, validation.to_dict())
+            package_dir = export_problem_package(problem, package_root, validation, review)
+            archive_path = create_problem_package_archive(problem.id, package_root)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "confirm_current": "false",
+                "patch": {"title": f"{problem.title} edited"},
+            }
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.WORKFLOW_STORE", workflow_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._continue_workflow(problem.id)
+
+            self.assertEqual(problem_store.get(problem.id).title, f"{problem.title} edited")
+            self.assertIsNone(report_store.get_review(problem.id))
+            self.assertIsNone(report_store.get_validation(problem.id))
+            self.assertFalse(package_dir.exists())
+            self.assertFalse(archive_path.exists())
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertTrue(payload["changed"])
+            self.assertTrue(payload["reports_invalidated"])
+            self.assertTrue(payload["package_invalidated"])
+
     def test_server_edit_invalidates_reports_and_package_artifacts(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)

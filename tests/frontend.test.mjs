@@ -256,3 +256,21 @@ test("mergeReportState clears reruns when validation report changes", () => {
     "prob_b:0": { passed: true },
   });
 });
+
+test("invalidateProblemState clears reports and current problem reruns", () => {
+  const context = loadAppContext();
+
+  const result = context.invalidateProblemState(
+    { review: { passed: true }, validation: { failed_cases: [] } },
+    {
+      "prob_a:0": { passed: false },
+      "prob_b:0": { passed: true },
+    },
+    "prob_a",
+  );
+
+  assert.deepEqual(plain(result.reports), {});
+  assert.deepEqual(plain(result.reruns), {
+    "prob_b:0": { passed: true },
+  });
+});

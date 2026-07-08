@@ -409,6 +409,6 @@ Content-Type: application/json
 }
 ```
 
-`patch` 可选，用于在确认当前步骤时保存用户修改。
+`patch` 可选，用于在确认当前步骤时保存用户修改。补丁字段和 `/api/problems/{problem_id}/edit` 相同；如果补丁让题目内容发生变化，会让旧审查报告、验证报告、导出目录和 ZIP 失效。响应会包含 `changed`、`reports_invalidated` 和 `package_invalidated`。
 
 `confirm_current` 默认 `true`；也兼容 `"true"` / `"false"` 这类字符串布尔值。其他字符串会返回 `400`，不会推进流程。

@@ -177,10 +177,24 @@ function mergeReportState(existingReports, existingReruns, problemId, updates) {
   return { reports, reruns };
 }
 
+function invalidateProblemState(existingReports, existingReruns, problemId) {
+  const reruns = { ...(existingReruns || {}) };
+  Object.keys(reruns)
+    .filter((key) => key.startsWith(`${problemId}:`))
+    .forEach((key) => delete reruns[key]);
+  return { reports: {}, reruns };
+}
+
 function updateProblemReports(id, updates) {
   const merged = mergeReportState(state.reports[id], state.reruns, id, updates);
   state.reports[id] = merged.reports;
   state.reruns = merged.reruns;
+}
+
+function invalidateProblemReports(id) {
+  const invalidated = invalidateProblemState(state.reports[id], state.reruns, id);
+  state.reports[id] = invalidated.reports;
+  state.reruns = invalidated.reruns;
 }
 
 async function loadSimilarity(id) {
@@ -1044,6 +1058,9 @@ async function continueWorkflow(includePatch) {
     });
     state.selected = data.problem;
     state.workflows[id] = data.workflow;
+    if (data.changed || data.reports_invalidated || data.package_invalidated) {
+      invalidateProblemReports(id);
+    }
     updateProblemReports(id, {
       ...(data.result?.reports?.review ? { review: data.result.reports.review } : {}),
       ...(data.result?.reports?.validation ? { validation: data.result.reports.validation } : {}),

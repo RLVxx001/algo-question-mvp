@@ -177,9 +177,15 @@ class Handler(BaseHTTPRequestHandler):
             problem = STORE.get(problem_id)
             workflow = WORKFLOW_STORE.get(problem_id)
             body = self._read_json(default={})
+            invalidated = {"reports_invalidated": False, "package_invalidated": False}
+            changed = False
             if isinstance(body.get("patch"), dict):
+                original = problem.to_dict()
                 problem = apply_problem_patch(problem, body["patch"])
-                STORE.save(problem)
+                changed = problem.to_dict() != original
+                if changed:
+                    STORE.save(problem)
+                    invalidated = _invalidate_problem_outputs(problem_id)
             workflow, result = advance_workflow(
                 workflow,
                 problem,
@@ -197,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                     "problem": problem.to_dict(),
                     "workflow": workflow.to_dict(),
                     "result": result,
+                    "changed": changed,
+                    **invalidated,
                 },
             )
         except KeyError:
