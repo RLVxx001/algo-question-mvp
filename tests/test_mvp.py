@@ -1441,6 +1441,20 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "samples must be a list of objects"):
             _apply_stage_patch(problem, {"samples": "not a sample list"}, "llm")
 
+    def test_llm_json_parser_extracts_object_from_surrounding_text(self) -> None:
+        from app.generator import _parse_json_object
+
+        parsed = _parse_json_object('Here is the problem JSON:\n{"title": "A", "tags": ["array"]}\nDone.')
+
+        self.assertEqual(parsed, {"title": "A", "tags": ["array"]})
+
+    def test_llm_json_parser_accepts_fenced_object_with_trailing_text(self) -> None:
+        from app.generator import _parse_json_object
+
+        parsed = _parse_json_object('```json\n{"title": "A", "tags": ["array"]}\n```\nHope this helps.')
+
+        self.assertEqual(parsed, {"title": "A", "tags": ["array"]})
+
     def test_validation_report_includes_operational_metadata(self) -> None:
         problem = generate_problem(ProblemRequest(topic="prefix sum", use_llm=False))
 

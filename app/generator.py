@@ -184,8 +184,28 @@ def _parse_json_object(content: str) -> dict[str, Any]:
     content = content.strip()
     if content.startswith("```"):
         content = re.sub(r"^```(?:json)?\s*", "", content)
-        content = re.sub(r"\s*```$", "", content)
-    return json.loads(content)
+        content = re.sub(r"\s*```.*$", "", content, flags=re.S)
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        data = _extract_json_object(content)
+    if not isinstance(data, dict):
+        raise ValueError("LLM response must be a JSON object")
+    return data
+
+
+def _extract_json_object(content: str) -> dict[str, Any]:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(content):
+        if char != "{":
+            continue
+        try:
+            data, _ = decoder.raw_decode(content[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    raise ValueError("LLM response must contain a JSON object")
 
 
 def _problem_from_payload(req: ProblemRequest, payload: dict[str, Any], source: str) -> GeneratedProblem:
