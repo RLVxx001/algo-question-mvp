@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import operator
 
 from app.models import GeneratedProblem, ReviewIssue, ReviewReport
 
@@ -127,7 +128,14 @@ def _module_root(name: str) -> str:
 
 
 def _string_literal(node: ast.AST) -> str | None:
-    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _string_literal(node.left)
+        right = _string_literal(node.right)
+        if left is not None and right is not None:
+            return operator.add(left, right)
+    return None
 
 
 def _subscript_key(node: ast.Subscript) -> str | None:

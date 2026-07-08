@@ -1653,6 +1653,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         )
         self.assertFalse(review.passed)
 
+    def test_review_flags_constant_joined_dangerous_builtin_lookup(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "getattr(__builtins__, 'op' + 'en')('out.txt', 'w')\nprint('x')\n"
+
+        review = review_problem(problem)
+
+        self.assertTrue(
+            any(
+                issue.field == "reference_solution" and issue.severity == "error" and "dangerous" in issue.message
+                for issue in review.issues
+            ),
+            review.to_dict(),
+        )
+        self.assertFalse(review.passed)
+
     def test_review_warns_about_weak_constraints_and_missing_seed(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.constraints = ["values are valid"]
