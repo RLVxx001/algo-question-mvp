@@ -14,8 +14,7 @@ class ProblemStore:
 
     def save(self, problem: GeneratedProblem) -> None:
         path = self.path_for(problem.id)
-        if path.is_symlink():
-            path.unlink()
+        _replace_invalid_file_path(path)
         path.write_text(json.dumps(problem.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     def get(self, problem_id: str) -> GeneratedProblem:
@@ -84,8 +83,7 @@ class WorkflowStore:
 
     def save(self, workflow: ProblemWorkflow) -> None:
         path = self.path_for(workflow.problem_id)
-        if path.is_symlink():
-            path.unlink()
+        _replace_invalid_file_path(path)
         path.write_text(
             json.dumps(workflow.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -188,3 +186,13 @@ def _safe_id(problem_id: str) -> str:
     if not problem_id or any(not (ch.isalnum() or ch in "-_") for ch in problem_id):
         raise ValueError("problem_id contains unsupported characters")
     return problem_id
+
+
+def _replace_invalid_file_path(path: Path) -> None:
+    if path.is_symlink():
+        path.unlink()
+    elif path.exists() and not path.is_file():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()

@@ -459,6 +459,20 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
             self.assertEqual(store.get(problem.id).id, problem.id)
 
+    def test_problem_store_save_replaces_directory_obstacle(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ProblemStore(Path(tmp) / "problems")
+            problem_path = store.path_for(problem.id)
+            problem_path.mkdir()
+            (problem_path / "stale.txt").write_text("stale", encoding="utf-8")
+
+            store.save(problem)
+
+            self.assertTrue(problem_path.is_file())
+            self.assertEqual(store.get(problem.id).id, problem.id)
+
     def test_server_problem_detail_returns_not_found_for_invalid_problem_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = ProblemStore(Path(tmp) / "problems")
@@ -548,6 +562,21 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
 
             self.assertFalse(workflow_path.is_symlink())
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+            self.assertEqual(store.get(problem.id).problem_id, problem.id)
+
+    def test_workflow_store_save_replaces_directory_obstacle(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = WorkflowStore(Path(tmp) / "workflows")
+            workflow_path = store.path_for(problem.id)
+            workflow_path.mkdir()
+            (workflow_path / "stale.txt").write_text("stale", encoding="utf-8")
+
+            store.save(workflow)
+
+            self.assertTrue(workflow_path.is_file())
             self.assertEqual(store.get(problem.id).problem_id, problem.id)
 
     def test_server_workflow_endpoint_returns_not_found_for_invalid_workflow_file(self) -> None:
