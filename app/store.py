@@ -28,7 +28,9 @@ class ProblemStore:
     def list(self) -> list[GeneratedProblem]:
         problems: list[GeneratedProblem] = []
         for path in sorted(self.root.glob("*.json")):
-            problems.append(GeneratedProblem.from_dict(json.loads(path.read_text(encoding="utf-8"))))
+            problem = _read_problem_for_list(path)
+            if problem is not None:
+                problems.append(problem)
         return problems
 
     def delete(self, problem_id: str) -> bool:
@@ -43,6 +45,19 @@ class ProblemStore:
 
     def path_for(self, problem_id: str) -> Path:
         return self.root / f"{_safe_id(problem_id)}.json"
+
+
+def _read_problem_for_list(path: Path) -> GeneratedProblem | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        return GeneratedProblem.from_dict(data)
+    except (TypeError, ValueError):
+        return None
 
 
 class WorkflowStore:
