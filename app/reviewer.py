@@ -190,7 +190,7 @@ def _assignment_target_names(node: ast.AST) -> list[str]:
 
 
 def _call_returns_dangerous_callable(node: ast.Call, calls: set[str]) -> bool:
-    if isinstance(node.func, ast.Attribute) and node.func.attr == "get" and node.args:
+    if isinstance(node.func, ast.Attribute) and node.func.attr in {"get", "pop", "setdefault"} and node.args:
         return _string_literal(node.args[0]) in calls
     return False
 
