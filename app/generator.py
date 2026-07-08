@@ -245,9 +245,12 @@ def _apply_stage_patch(problem: GeneratedProblem, patch: dict[str, Any], source:
         "brute_force_solution",
         "generator_code",
     }
+    normalized: dict[str, Any] = {}
     for key, value in patch.items():
         if key in allowed:
-            setattr(problem, key, _normalize_problem_field(key, value))
+            normalized[key] = _normalize_problem_field(key, value)
+    for key, value in normalized.items():
+        setattr(problem, key, value)
     problem.source = source
     return problem
 

@@ -1441,6 +1441,19 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "samples must be a list of objects"):
             _apply_stage_patch(problem, {"samples": "not a sample list"}, "llm")
 
+    def test_llm_stage_patch_does_not_partially_apply_invalid_patch(self) -> None:
+        from app.generator import _apply_stage_patch
+
+        problem = generate_problem(ProblemRequest(topic="array", statement_language="en", use_llm=False))
+        original_title = problem.title
+        original_source = problem.source
+
+        with self.assertRaisesRegex(ValueError, "samples must be a list of objects"):
+            _apply_stage_patch(problem, {"title": "Partially Applied Title", "samples": "bad"}, "llm")
+
+        self.assertEqual(problem.title, original_title)
+        self.assertEqual(problem.source, original_source)
+
     def test_llm_json_parser_extracts_object_from_surrounding_text(self) -> None:
         from app.generator import _parse_json_object
 
