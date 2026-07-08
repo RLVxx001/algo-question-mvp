@@ -95,6 +95,31 @@ def main() -> int:
     else:
         raise AssertionError("blank topic unexpectedly succeeded")
 
+    medium_problem = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "Medium", "count": 1, "use_llm": False},
+        timeout=30,
+    )["list"][0]
+    _assert(medium_problem["difficulty"] == "medium", "difficulty normalizes to lowercase")
+    _assert_deleted(base_url, medium_problem["id"])
+    results.append(f"difficulty normalization ok: {medium_problem['id']}")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/generate",
+            {"topic": "array", "difficulty": "expert", "count": 1, "use_llm": False},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "unsupported difficulty returns 400")
+        _assert(
+            body["error"] == "difficulty must be easy, medium, or hard",
+            "unsupported difficulty has clear error",
+        )
+    else:
+        raise AssertionError("unsupported difficulty unexpectedly succeeded")
+
     python_alias_problem = _post_json(
         f"{base_url}/api/problems/generate",
         {"topic": "array", "difficulty": "easy", "language": "py", "count": 1, "use_llm": False},
