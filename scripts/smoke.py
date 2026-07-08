@@ -161,6 +161,25 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
         names = set(archive.namelist())
     _assert("problem.md" in names, "package zip contains problem.md")
     _assert("validation_report.json" in names, "package zip contains validation report")
+
+    edited = _post_json(
+        f"{base_url}/api/problems/{problem_id}/edit",
+        {"patch": {"title": f"{problem['title']} edited"}},
+        timeout=30,
+    )
+    _assert(edited["reports_invalidated"] is True, "edit invalidated stored reports")
+    _assert(edited["package_invalidated"] is True, "edit invalidated package artifacts")
+    invalidated_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
+    _assert(invalidated_reports["review"] is None, "review report is cleared after edit")
+    _assert(invalidated_reports["validation"] is None, "validation report is cleared after edit")
+    _assert(invalidated_reports["package"] is None, "package info is cleared after edit")
+    try:
+        _get_bytes(f"{base_url}/api/problems/{problem_id}/package/download")
+    except urllib.error.HTTPError as exc:
+        _assert(exc.code == 404, "package download returns 404 after edit")
+    else:
+        raise AssertionError("package download still succeeds after edit")
+
     _assert_deleted(base_url, problem_id)
     return problem_id
 

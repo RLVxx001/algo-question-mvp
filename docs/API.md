@@ -65,6 +65,33 @@ GET /api/problems
 GET /api/problems/{problem_id}
 ```
 
+## 编辑题目
+
+```http
+POST /api/problems/{problem_id}/edit
+Content-Type: application/json
+```
+
+请求：
+
+```json
+{
+  "patch": {
+    "title": "新的标题",
+    "statement": "新的题面"
+  }
+}
+```
+
+编辑成功后会删除该题目已有的审查报告、验证报告、导出目录和 ZIP，因为它们已经不再对应当前题目内容。响应是在题目详情基础上增加：
+
+```json
+{
+  "reports_invalidated": true,
+  "package_invalidated": true
+}
+```
+
 ## 删除题目
 
 ```http

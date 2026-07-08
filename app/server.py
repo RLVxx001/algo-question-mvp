@@ -199,7 +199,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             problem = apply_problem_patch(problem, patch)
             STORE.save(problem)
-            self._json(HTTPStatus.OK, problem.to_dict())
+            invalidated = _invalidate_problem_outputs(problem_id)
+            payload = problem.to_dict()
+            payload.update(invalidated)
+            self._json(HTTPStatus.OK, payload)
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except Exception as exc:
@@ -405,6 +408,13 @@ def _persist_reports(problem_id: str, reports: dict) -> None:
         REPORT_STORE.save_review(problem_id, review)
     if isinstance(validation, dict):
         REPORT_STORE.save_validation(problem_id, validation)
+
+
+def _invalidate_problem_outputs(problem_id: str) -> dict:
+    return {
+        "reports_invalidated": REPORT_STORE.delete(problem_id),
+        "package_invalidated": _remove_package_artifacts(problem_id),
+    }
 
 
 def _remove_package_artifacts(problem_id: str) -> bool:

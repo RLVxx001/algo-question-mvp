@@ -684,8 +684,10 @@ async function saveEdit(event) {
       body: JSON.stringify({ patch }),
     });
     state.selected = problem;
+    state.reports[id] = {};
+    clearRerunsForProblem(id);
     renderAll();
-    log("编辑已保存", problem.title, "ok");
+    log("编辑已保存", "旧报告和导出包已失效，请重新审查/验证。", "ok");
   } catch (err) {
     log("编辑失败", err.message, "bad");
   }
@@ -801,9 +803,7 @@ async function deleteSelectedProblem() {
     const data = await api(`/api/problems/${problem.id}`, { method: "DELETE" });
     delete state.reports[problem.id];
     delete state.workflows[problem.id];
-    Object.keys(state.reruns)
-      .filter((key) => key.startsWith(`${problem.id}:`))
-      .forEach((key) => delete state.reruns[key]);
+    clearRerunsForProblem(problem.id);
     state.selected = null;
     await loadProblems(false);
     renderAll();
@@ -813,6 +813,12 @@ async function deleteSelectedProblem() {
   } finally {
     setBusy(els.deleteButton, false, "");
   }
+}
+
+function clearRerunsForProblem(problemId) {
+  Object.keys(state.reruns)
+    .filter((key) => key.startsWith(`${problemId}:`))
+    .forEach((key) => delete state.reruns[key]);
 }
 
 function bindEvents() {

@@ -79,6 +79,16 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/reports
 
 运行审查或验证后，报告会持久化到 `data/reports/<problem_id>/`，刷新前端后仍可读取。
 
+## 编辑题目
+
+```bash
+curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/edit \
+  -H 'Content-Type: application/json' \
+  -d '{"patch":{"title":"新的标题"}}'
+```
+
+编辑会使旧审查报告、旧验证报告、导出目录和 ZIP 失效；需要重新审查、验证和导出。
+
 ## 审查题目
 
 ```bash
