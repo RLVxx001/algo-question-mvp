@@ -392,6 +392,105 @@ test("renderWorkflow disables continue button while workflow operation is busy",
   assert.match(context.__elements.detailContent.innerHTML, /continueWorkflowButton[\s\S]*disabled/);
 });
 
+test("renderEdit keeps edit actions disabled while edit or workflow operation is busy", () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Problem",
+    statement: "Statement",
+    input_format: "Input",
+    output_format: "Output",
+    constraints: [],
+    samples: [],
+    tags: [],
+    solution_explanation: "Solution",
+    reference_solution: "print(1)",
+    brute_force_solution: "print(1)",
+    generator_code: "print(1)",
+  };
+
+  vm.runInContext(
+    `
+      state.busy["edit:prob_a"] = true;
+      state.busy["workflow:prob_a"] = true;
+    `,
+    context,
+  );
+
+  context.renderEdit(problem);
+
+  assert.match(context.__elements.detailContent.innerHTML, /type="submit"[\s\S]*disabled[\s\S]*保存中/);
+  assert.match(context.__elements.detailContent.innerHTML, /saveAndContinueButton[\s\S]*disabled[\s\S]*流程处理中/);
+});
+
+test("saveEdit rerenders after releasing edit busy state", async () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Original title",
+    statement: "Statement",
+    input_format: "Input",
+    output_format: "Output",
+    constraints: [],
+    samples: [],
+    tags: [],
+    solution_explanation: "Solution",
+    reference_solution: "print(1)",
+    brute_force_solution: "print(1)",
+    generator_code: "print(1)",
+  };
+  const editedValues = {
+    title: "Edited title",
+    statement: problem.statement,
+    input_format: problem.input_format,
+    output_format: problem.output_format,
+    constraints: "",
+    sample_input: [],
+    sample_output: [],
+    tags: "",
+    solution_explanation: problem.solution_explanation,
+    reference_solution: problem.reference_solution,
+    brute_force_solution: problem.brute_force_solution,
+    generator_code: problem.generator_code,
+  };
+  const busyStates = [];
+
+  context.FormData = class FakeFormData {
+    constructor(form) {
+      this.values = form.__values || {};
+    }
+
+    get(name) {
+      const value = this.values[name];
+      return Array.isArray(value) ? value[0] : value;
+    }
+
+    getAll(name) {
+      const value = this.values[name];
+      if (Array.isArray(value)) return value;
+      return value == null ? [] : [value];
+    }
+  };
+  context.renderAll = () => {
+    busyStates.push(context.isOperationBusy("edit:prob_a"));
+  };
+  context.fetch = async (path) => ({
+    ok: true,
+    json: async () =>
+      path.endsWith("/similar")
+        ? { similar: [] }
+        : { ...problem, ...editedValues, id: problem.id, changed: true },
+  });
+  vm.runInContext(`state.selected = ${JSON.stringify(problem)};`, context);
+
+  await context.saveEdit({
+    preventDefault() {},
+    target: { __values: editedValues },
+  });
+
+  assert.equal(busyStates.at(-1), false);
+});
+
 test("renderFailedCase disables rerun button while rerun is busy", () => {
   const context = loadAppContext();
   vm.runInContext(`state.busy["rerun:prob_a:0"] = true;`, context);

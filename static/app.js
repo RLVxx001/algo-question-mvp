@@ -418,7 +418,34 @@ function renderWorkflow(problem) {
   });
 }
 
+function editActionState(problemId) {
+  const editBusy = isProblemOperationBusy("edit", problemId);
+  const workflowBusy = isProblemOperationBusy("workflow", problemId);
+  const disabled = editBusy || workflowBusy;
+  return {
+    disabled,
+    saveLabel: editBusy ? "保存中" : "保存编辑",
+    continueLabel: workflowBusy ? "流程处理中" : editBusy ? "保存中" : "保存并继续流程",
+  };
+}
+
+function syncEditActionButtons(problemId) {
+  const actionState = editActionState(problemId);
+  const saveButton = document.getElementById("saveEditButton");
+  const continueButton = document.getElementById("saveAndContinueButton");
+  if (saveButton) {
+    saveButton.disabled = actionState.disabled;
+    saveButton.innerHTML = `<span class="button-icon">${actionState.disabled ? "..." : "S"}</span><span>${actionState.saveLabel}</span>`;
+  }
+  if (continueButton) {
+    continueButton.disabled = actionState.disabled;
+    continueButton.innerHTML = `<span class="button-icon">${actionState.disabled ? "..." : ">"}</span><span>${actionState.continueLabel}</span>`;
+  }
+}
+
 function renderEdit(problem) {
+  const actions = editActionState(problem.id);
+  const disabled = actions.disabled ? "disabled" : "";
   els.detailContent.innerHTML = `
     <h3>编辑题目</h3>
     <form id="editForm" class="edit-form">
@@ -445,8 +472,8 @@ function renderEdit(problem) {
       <label class="code-field"><span>暴力解 Python</span><textarea name="brute_force_solution" spellcheck="false">${escapeHtml(problem.brute_force_solution)}</textarea></label>
       <label class="code-field"><span>数据生成器 Python</span><textarea name="generator_code" spellcheck="false">${escapeHtml(problem.generator_code)}</textarea></label>
       <div class="toolbar">
-        <button class="primary-button" type="submit"><span class="button-icon">S</span><span>保存编辑</span></button>
-        <button id="saveAndContinueButton" class="secondary-button" type="button"><span class="button-icon">></span><span>保存并继续流程</span></button>
+        <button id="saveEditButton" class="primary-button" type="submit" ${disabled}><span class="button-icon">${actions.disabled ? "..." : "S"}</span><span>${actions.saveLabel}</span></button>
+        <button id="saveAndContinueButton" class="secondary-button" type="button" ${disabled}><span class="button-icon">${actions.disabled ? "..." : ">"}</span><span>${actions.continueLabel}</span></button>
       </div>
     </form>
   `;
@@ -1049,6 +1076,7 @@ async function saveEdit(event) {
   }
   const operationKey = `edit:${id}`;
   if (!beginOperation(operationKey)) return;
+  syncEditActionButtons(id);
   try {
     const problem = await api(`/api/problems/${id}/edit`, {
       method: "POST",
@@ -1060,7 +1088,6 @@ async function saveEdit(event) {
       clearRerunsForProblem(id);
     }
     await loadSimilarity(id);
-    renderAll();
     const message =
       problem.changed === false ? "当前表单没有变化，报告和导出包保持有效。" : "旧报告和导出包已失效，请重新审查/验证。";
     log("编辑已保存", message, "ok");
@@ -1068,6 +1095,7 @@ async function saveEdit(event) {
     log("编辑失败", err.message, "bad");
   } finally {
     endOperation(operationKey);
+    renderAll();
   }
 }
 
@@ -1112,6 +1140,7 @@ async function continueWorkflow(includePatch) {
     log("流程失败", err.message, "bad");
   } finally {
     endOperation(operationKey);
+    renderAll();
   }
 }
 
