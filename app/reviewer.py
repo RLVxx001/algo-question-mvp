@@ -102,6 +102,7 @@ def _check_dangerous_python(source: str, field: str, issues: list[ReviewIssue]) 
         return
     dangerous_modules = {"builtins", "os", "socket", "subprocess", "shutil", "requests", "urllib", "importlib", "pathlib"}
     dangerous_calls = {"open", "eval", "exec", "__import__"}
+    dangerous_calls = dangerous_calls | _dangerous_callable_aliases(tree, dangerous_calls)
     if any(_has_dangerous_node(node, dangerous_modules, dangerous_calls) for node in ast.walk(tree)):
         issues.append(ReviewIssue("error", field, "dangerous local-execution code is not allowed in this MVP"))
 
@@ -140,6 +141,36 @@ def _string_literal(node: ast.AST) -> str | None:
 
 def _subscript_key(node: ast.Subscript) -> str | None:
     return _string_literal(node.slice)
+
+
+def _dangerous_callable_aliases(tree: ast.AST, calls: set[str]) -> set[str]:
+    aliases: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        known = calls | aliases
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and _is_dangerous_callable_ref(node.value, known):
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign) and node.value and _is_dangerous_callable_ref(node.value, known):
+                targets = [node.target]
+            else:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id not in known:
+                    aliases.add(target.id)
+                    changed = True
+    return aliases
+
+
+def _is_dangerous_callable_ref(node: ast.AST, calls: set[str]) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in calls
+    if isinstance(node, ast.Attribute):
+        return node.attr in calls
+    if isinstance(node, ast.Subscript):
+        return _subscript_key(node) in calls
+    return False
 
 
 def _check_text_depth(problem: GeneratedProblem, issues: list[ReviewIssue]) -> None:
