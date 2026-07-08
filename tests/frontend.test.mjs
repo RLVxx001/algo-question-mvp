@@ -376,6 +376,36 @@ test("refreshProblems disables refresh button and ignores duplicate refreshes", 
   assert.equal(context.isOperationBusy("refresh"), false);
 });
 
+test("loadWorkflow logs non-404 failures but ignores missing workflow records", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+
+  context.fetch = async () => ({
+    ok: false,
+    status: 404,
+    json: async () => ({ error: "workflow not found" }),
+  });
+  await context.loadWorkflow("prob_a");
+
+  context.fetch = async () => ({
+    ok: false,
+    status: 500,
+    json: async () => ({ error: "workflow store unavailable" }),
+  });
+  await context.loadWorkflow("prob_a");
+
+  assert.deepEqual(logs, [
+    {
+      title: "流程读取失败",
+      message: "workflow store unavailable",
+      level: "warn",
+    },
+  ]);
+});
+
 test("selectProblem removes missing problem from list without throwing", async () => {
   const context = loadAppContext();
   const logs = [];

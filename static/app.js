@@ -234,6 +234,9 @@ async function loadWorkflow(id) {
     state.workflows[id] = await api(`/api/problems/${id}/workflow`);
   } catch (err) {
     delete state.workflows[id];
+    if (err.status !== 404) {
+      log("流程读取失败", err.message, "warn");
+    }
   }
 }
 
