@@ -233,3 +233,26 @@ test("problemPatchChanged detects no-op and changed edit payloads", () => {
     true,
   );
 });
+
+test("mergeReportState clears reruns when validation report changes", () => {
+  const context = loadAppContext();
+
+  const result = context.mergeReportState(
+    { review: { passed: true } },
+    {
+      "prob_a:0": { passed: false },
+      "prob_a:1": { passed: true },
+      "prob_b:0": { passed: true },
+    },
+    "prob_a",
+    { validation: { failed_cases: [] } },
+  );
+
+  assert.deepEqual(plain(result.reports), {
+    review: { passed: true },
+    validation: { failed_cases: [] },
+  });
+  assert.deepEqual(plain(result.reruns), {
+    "prob_b:0": { passed: true },
+  });
+});

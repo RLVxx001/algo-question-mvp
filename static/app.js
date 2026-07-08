@@ -156,15 +156,31 @@ async function loadWorkflow(id) {
 async function loadStoredReports(id) {
   try {
     const data = await api(`/api/problems/${id}/reports`);
-    state.reports[id] = {
-      ...(state.reports[id] || {}),
+    updateProblemReports(id, {
       ...(data.review ? { review: data.review } : {}),
       ...(data.validation ? { validation: data.validation } : {}),
       ...(data.package ? { package: data.package } : {}),
-    };
+    });
   } catch (err) {
     log("报告读取失败", err.message, "warn");
   }
+}
+
+function mergeReportState(existingReports, existingReruns, problemId, updates) {
+  const reports = { ...(existingReports || {}), ...(updates || {}) };
+  const reruns = { ...(existingReruns || {}) };
+  if (Object.prototype.hasOwnProperty.call(updates || {}, "validation")) {
+    Object.keys(reruns)
+      .filter((key) => key.startsWith(`${problemId}:`))
+      .forEach((key) => delete reruns[key]);
+  }
+  return { reports, reruns };
+}
+
+function updateProblemReports(id, updates) {
+  const merged = mergeReportState(state.reports[id], state.reruns, id, updates);
+  state.reports[id] = merged.reports;
+  state.reruns = merged.reruns;
 }
 
 async function loadSimilarity(id) {
@@ -1028,12 +1044,11 @@ async function continueWorkflow(includePatch) {
     });
     state.selected = data.problem;
     state.workflows[id] = data.workflow;
-    state.reports[id] = {
-      ...(state.reports[id] || {}),
+    updateProblemReports(id, {
       ...(data.result?.reports?.review ? { review: data.result.reports.review } : {}),
       ...(data.result?.reports?.validation ? { validation: data.result.reports.validation } : {}),
       ...(data.result?.reports?.package ? { package: data.result.reports.package } : {}),
-    };
+    });
     renderAll();
     log("流程继续", workflowEventSummary(data.result), "ok");
   } catch (err) {
@@ -1058,7 +1073,7 @@ async function runReview() {
   setBusy(els.reviewButton, true, "审查中");
   try {
     const data = await api(`/api/problems/${id}/review`, { method: "POST", body: "{}" });
-    state.reports[id] = { ...(state.reports[id] || {}), review: data };
+    updateProblemReports(id, { review: data });
     renderAll();
     log("审查完成", `score=${data.score}, passed=${data.passed}`, data.passed ? "ok" : "warn");
   } catch (err) {
@@ -1086,7 +1101,7 @@ async function runValidate() {
       method: "POST",
       body: JSON.stringify(options),
     });
-    state.reports[id] = { ...(state.reports[id] || {}), validation: data };
+    updateProblemReports(id, { validation: data });
     renderAll();
     log("验证完成", `fuzz=${data.fuzz_passed}, cases=${data.total_cases}`, data.fuzz_passed ? "ok" : "bad");
   } catch (err) {
@@ -1114,25 +1129,23 @@ async function runPackage() {
       method: "POST",
       body: JSON.stringify(options),
     });
-    state.reports[id] = {
-      ...(state.reports[id] || {}),
+    updateProblemReports(id, {
       review: data.review,
       validation: data.validation,
       package: { package_dir: data.package_dir, download_url: data.download_url },
-    };
+    });
     renderAll();
     log("导出完成", data.package_dir, "ok");
   } catch (err) {
     if (err.payload?.package_blocked) {
-      state.reports[id] = {
-        ...(state.reports[id] || {}),
+      updateProblemReports(id, {
         review: err.payload.review,
         validation: err.payload.validation,
         package: {
           package_blocked: true,
           error: err.payload.error,
         },
-      };
+      });
       state.activeTab = "reports";
       renderAll();
       log("导出被阻止", "审查或验证未通过，报告已更新。", "warn");
