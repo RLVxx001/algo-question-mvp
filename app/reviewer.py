@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+
 from app.models import GeneratedProblem, ReviewIssue, ReviewReport
 
 
@@ -84,25 +86,33 @@ def _compile_python(source: str, field: str, issues: list[ReviewIssue]) -> None:
 
 
 def _check_dangerous_python(source: str, field: str, issues: list[ReviewIssue]) -> None:
-    patterns = [
-        "import os",
-        "from os",
-        "import socket",
-        "from socket",
-        "import subprocess",
-        "from subprocess",
-        "import shutil",
-        "from shutil",
-        "import requests",
-        "from requests",
-        "import urllib",
-        "from urllib",
-        "open(",
-        "eval(",
-        "exec(",
-    ]
-    if any(pattern in source for pattern in patterns):
+    if not isinstance(source, str):
+        return
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return
+    dangerous_modules = {"os", "socket", "subprocess", "shutil", "requests", "urllib"}
+    dangerous_calls = {"open", "eval", "exec", "__import__"}
+    if any(_has_dangerous_node(node, dangerous_modules, dangerous_calls) for node in ast.walk(tree)):
         issues.append(ReviewIssue("error", field, "dangerous local-execution code is not allowed in this MVP"))
+
+
+def _has_dangerous_node(node: ast.AST, modules: set[str], calls: set[str]) -> bool:
+    if isinstance(node, ast.Import):
+        return any(_module_root(alias.name) in modules for alias in node.names)
+    if isinstance(node, ast.ImportFrom):
+        return _module_root(node.module or "") in modules
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name):
+            return node.func.id in calls
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr in calls
+    return False
+
+
+def _module_root(name: str) -> str:
+    return name.split(".", 1)[0]
 
 
 def _check_text_depth(problem: GeneratedProblem, issues: list[ReviewIssue]) -> None:

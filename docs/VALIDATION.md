@@ -10,7 +10,7 @@
 - 样例是否至少两组，且包含 input/output。
 - 约束和标签是否存在。
 - 标准解、暴力解、生成器是否能通过 Python 语法编译。
-- 生成代码是否包含明显危险的本地执行能力，如 `subprocess`、`socket`、`urllib`、`open(`、`eval(`、`exec(` 等。
+- 生成代码是否包含明显危险的本地执行能力，如 `subprocess`、`socket`、`urllib`、`open`、`eval`、`exec`、`__import__` 等；检查基于 Python AST，可覆盖多空格导入和动态导入这类写法。
 - 题面、输入输出格式、题解是否过短。
 - 约束是否包含数字边界。
 - 数据生成器是否使用 seed 参数。

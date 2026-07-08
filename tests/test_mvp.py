@@ -1077,6 +1077,22 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             review.to_dict(),
         )
 
+    def test_review_flags_obfuscated_dangerous_generated_code(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "import   os\nprint('x')\n"
+        problem.generator_code = "__import__('subprocess')\nprint('1')\n"
+
+        review = review_problem(problem)
+
+        dangerous_fields = {
+            issue.field
+            for issue in review.issues
+            if issue.severity == "error" and "dangerous" in issue.message
+        }
+        self.assertIn("reference_solution", dangerous_fields)
+        self.assertIn("generator_code", dangerous_fields)
+        self.assertFalse(review.passed)
+
     def test_review_warns_about_weak_constraints_and_missing_seed(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.constraints = ["values are valid"]
