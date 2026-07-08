@@ -121,6 +121,8 @@ def _has_dangerous_node(node: ast.AST, modules: set[str], calls: set[str]) -> bo
             return node.func.attr in calls
         if isinstance(node.func, ast.Subscript):
             return _subscript_key(node.func) in calls
+        if isinstance(node.func, ast.Call):
+            return _call_returns_dangerous_callable(node.func, calls)
     return False
 
 
@@ -185,6 +187,12 @@ def _assignment_target_names(node: ast.AST) -> list[str]:
     if isinstance(node, ast.Tuple | ast.List):
         return [name for item in node.elts for name in _assignment_target_names(item)]
     return []
+
+
+def _call_returns_dangerous_callable(node: ast.Call, calls: set[str]) -> bool:
+    if isinstance(node.func, ast.Attribute) and node.func.attr == "get" and node.args:
+        return _string_literal(node.args[0]) in calls
+    return False
 
 
 def _is_dangerous_callable_ref(node: ast.AST, calls: set[str]) -> bool:
