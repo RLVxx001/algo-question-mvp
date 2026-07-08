@@ -800,6 +800,60 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
         self.assertEqual(payload["error"], "manual_steps must be a list of step names")
 
+    def test_server_generate_rejects_fractional_count_without_saving_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "topic": "array",
+                "count": 1.5,
+                "use_llm": False,
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._generate()
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "count must be an integer")
+            self.assertEqual(problem_store.list(), [])
+
+    def test_server_validate_rejects_fractional_rounds_without_saving_report(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": 2.5, "timeout_seconds": 1.0}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+            ):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "rounds must be an integer")
+            self.assertIsNone(report_store.get_validation(problem.id))
+
     def test_server_workflow_continue_parses_string_false_confirmation(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement"])

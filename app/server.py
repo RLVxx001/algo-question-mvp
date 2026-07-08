@@ -609,12 +609,7 @@ def _parse_difficulty(value: object) -> str:
 
 
 def _parse_count(value: object) -> int:
-    if isinstance(value, bool):
-        raise ValueError("count must be an integer")
-    try:
-        count = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("count must be an integer") from exc
+    count = _parse_integer(value, "count")
     return max(1, min(count, MAX_GENERATION_COUNT))
 
 
@@ -642,13 +637,21 @@ def _parse_bool(value: object, field: str) -> bool:
 
 
 def _clamp_rounds(value: object) -> int:
-    if isinstance(value, bool):
-        raise ValueError("rounds must be an integer")
-    try:
-        rounds = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("rounds must be an integer") from exc
+    rounds = _parse_integer(value, "rounds")
     return max(1, min(rounds, MAX_VALIDATION_ROUNDS))
+
+
+def _parse_integer(value: object, field: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an integer")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        signless = text[1:] if text[:1] in {"+", "-"} else text
+        if signless.isdigit():
+            return int(text)
+    raise ValueError(f"{field} must be an integer")
 
 
 def _clamp_timeout(value: object) -> float:
