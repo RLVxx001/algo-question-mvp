@@ -115,6 +115,8 @@ curl -sS http://127.0.0.1:18081/api/problems/<problem_id>/package \
   -d '{"rounds":100}'
 ```
 
+导出接口会重新运行审查和验证。只有审查通过、样例通过、随机对拍通过时才会生成目录和 ZIP；任一失败会返回 `400`，并带上最新审查/验证报告，前端报告页会显示导出被阻止的原因。
+
 题目包会导出到：
 
 ```text
@@ -143,7 +145,7 @@ make compile
 make test
 ```
 
-服务启动后可以跑 HTTP 主流程 smoke。smoke 会验证生成、审查、对拍、导出、ZIP 下载和删除清理：
+服务启动后可以跑 HTTP 主流程 smoke。smoke 会验证生成、审查、对拍、导出闸门、ZIP 下载和删除清理：
 
 ```bash
 python3 -m scripts.smoke --base-url http://127.0.0.1:18081

@@ -238,6 +238,31 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
 
     try:
         _post_json(
+            f"{base_url}/api/problems/{problem_id}/package",
+            {"rounds": rounds, "timeout_seconds": 1.5},
+            timeout=60,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "package returns 400 when validation fails")
+        _assert(body["package_blocked"] is True, "package response marks export as blocked")
+        _assert(body["validation"]["sample_passed"] is False, "blocked package includes failed validation report")
+        _assert("review" in body, "blocked package includes review report")
+    else:
+        raise AssertionError("package unexpectedly succeeded after failing validation")
+
+    blocked_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
+    _assert(blocked_reports["validation"]["sample_passed"] is False, "blocked validation report persists")
+    _assert(blocked_reports["package"] is None, "blocked package does not create package info")
+    try:
+        _get_bytes(f"{base_url}/api/problems/{problem_id}/package/download")
+    except urllib.error.HTTPError as exc:
+        _assert(exc.code == 404, "package download remains 404 after blocked export")
+    else:
+        raise AssertionError("package download succeeds after blocked export")
+
+    try:
+        _post_json(
             f"{base_url}/api/problems/{problem_id}/edit",
             {"patch": {"samples": [{"input": "missing output\n"}]}},
             timeout=30,
@@ -294,6 +319,10 @@ def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _http_error_json(exc: urllib.error.HTTPError) -> dict[str, Any]:
+    return json.loads(exc.read().decode("utf-8"))
 
 
 def _assert(condition: bool, message: str) -> None:

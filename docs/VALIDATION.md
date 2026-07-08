@@ -46,7 +46,7 @@ compare expected and actual
 
 验证报告会记录本次运行的 `rounds`、`timeout_seconds`、`sample_count`、`duration_ms`、`first_failed_seed` 和 `failure_stage`。这些字段用于在页面上快速判断失败发生在样例、生成器、暴力解、标准解还是标准/暴力输出比较阶段。
 
-审查和验证报告会在运行后写入 `data/reports/{problem_id}/`，不需要等到导出题目包。前端刷新后会通过 `/api/problems/{id}/reports` 重新读取这些报告；导出题目包时，报告也会同时写入 `data/packages/{problem_id}/`，作为可交付包的一部分。
+审查和验证报告会在运行后写入 `data/reports/{problem_id}/`，不需要等到导出题目包。前端刷新后会通过 `/api/problems/{id}/reports` 重新读取这些报告；导出题目包时会先重新运行审查和验证，只有两者都通过才会把报告写入 `data/packages/{problem_id}/`，作为可交付包的一部分。失败时接口返回 `400`，不会生成可下载包，但最新报告仍会保存在 `data/reports/{problem_id}/`。
 
 ## 4. 单用例复跑
 

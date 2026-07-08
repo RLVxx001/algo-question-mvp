@@ -50,7 +50,10 @@ async function api(path, options = {}) {
   });
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+    const error = new Error(data.error || `HTTP ${response.status}`);
+    error.status = response.status;
+    error.payload = data;
+    throw error;
   }
   return data;
 }
@@ -255,7 +258,11 @@ function renderMetrics() {
   } else {
     els.validateMetric.textContent = "-";
   }
-  els.packageMetric.textContent = reports.package ? "已导出" : "-";
+  if (reports.package?.package_blocked) {
+    els.packageMetric.textContent = "被阻止";
+  } else {
+    els.packageMetric.textContent = reports.package ? "已导出" : "-";
+  }
 }
 
 function languageLabel(language) {
@@ -706,6 +713,15 @@ function renderPackageSummary(problem, report) {
       </section>
     `;
   }
+  if (report.package_blocked) {
+    return `
+      <section class="report-card">
+        <div class="report-heading"><h4>导出</h4><span class="status-pill failed">被阻止</span></div>
+        <div class="empty-report">${escapeHtml(report.error || "审查或验证未通过，暂未生成题目包。")}</div>
+        <details><summary>原始导出 JSON</summary>${renderReportBlock(report, "")}</details>
+      </section>
+    `;
+  }
   const downloadUrl = report.download_url || `/api/problems/${encodeURIComponent(problem.id)}/package/download`;
   return `
     <section class="report-card">
@@ -974,7 +990,22 @@ async function runPackage() {
     renderAll();
     log("导出完成", data.package_dir, "ok");
   } catch (err) {
-    log("导出失败", err.message, "bad");
+    if (err.payload?.package_blocked) {
+      state.reports[id] = {
+        ...(state.reports[id] || {}),
+        review: err.payload.review,
+        validation: err.payload.validation,
+        package: {
+          package_blocked: true,
+          error: err.payload.error,
+        },
+      };
+      state.activeTab = "reports";
+      renderAll();
+      log("导出被阻止", "审查或验证未通过，报告已更新。", "warn");
+    } else {
+      log("导出失败", err.message, "bad");
+    }
   } finally {
     setBusy(els.packageButton, false, "");
   }

@@ -315,17 +315,33 @@ class Handler(BaseHTTPRequestHandler):
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
             validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             review = review_problem(problem)
+            validation_report = validation.to_dict()
+            review_report = review.to_dict()
+            REPORT_STORE.save_review(problem.id, review_report)
+            REPORT_STORE.save_validation(problem.id, validation_report)
+            if not review.passed or not validation.sample_passed or not validation.fuzz_passed:
+                _remove_package_artifacts(problem.id)
+                self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "problem_id": problem.id,
+                        "package_blocked": True,
+                        "error": "package blocked by failed review or validation",
+                        "validation": validation_report,
+                        "review": review_report,
+                    },
+                )
+                return
             package_dir = export_problem_package(problem, PACKAGE_ROOT, validation, review)
-            REPORT_STORE.save_review(problem.id, review.to_dict())
-            REPORT_STORE.save_validation(problem.id, validation.to_dict())
             self._json(
                 HTTPStatus.OK,
                 {
                     "problem_id": problem.id,
+                    "package_blocked": False,
                     "package_dir": str(package_dir),
                     "download_url": _package_download_url(problem.id),
-                    "validation": validation.to_dict(),
-                    "review": review.to_dict(),
+                    "validation": validation_report,
+                    "review": review_report,
                 },
             )
         except KeyError:

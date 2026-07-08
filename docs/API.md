@@ -288,19 +288,34 @@ Content-Type: application/json
 }
 ```
 
+接口会重新运行审查和验证。只有 `review.passed`、`validation.sample_passed` 和 `validation.fuzz_passed` 全部为 `true` 时才会创建导出目录和 ZIP。
+
 导出目录：
 
 ```text
 data/packages/{problem_id}/
 ```
 
-响应会包含：
+成功响应会包含：
 
 ```json
 {
   "problem_id": "prob_x",
+  "package_blocked": false,
   "package_dir": "data/packages/prob_x",
   "download_url": "/api/problems/prob_x/package/download",
+  "validation": {},
+  "review": {}
+}
+```
+
+如果审查或验证失败，接口返回 `400`，不会创建 `data/packages/{problem_id}/`，并会保存最新报告到 `data/reports/{problem_id}/`：
+
+```json
+{
+  "problem_id": "prob_x",
+  "package_blocked": true,
+  "error": "package blocked by failed review or validation",
   "validation": {},
   "review": {}
 }
@@ -323,7 +338,7 @@ data/packages/{problem_id}/
 GET /api/problems/{problem_id}/package/download
 ```
 
-下载前需要先调用 `/api/problems/{problem_id}/package` 或完成分步流程的导出步骤。接口会基于 `data/packages/{problem_id}/` 生成 `data/packages/{problem_id}.zip` 并返回：
+下载前需要先成功调用 `/api/problems/{problem_id}/package` 或完成分步流程的导出步骤。接口会基于 `data/packages/{problem_id}/` 生成 `data/packages/{problem_id}.zip` 并返回：
 
 - `Content-Type: application/zip`
 - `Content-Disposition: attachment; filename="{problem_id}.zip"`
