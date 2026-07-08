@@ -61,7 +61,9 @@ def _read_problem_for_list(path: Path) -> GeneratedProblem | None:
     if not isinstance(data, dict):
         return None
     try:
-        return GeneratedProblem.from_dict(data)
+        problem = GeneratedProblem.from_dict(data)
+        _safe_id(problem.id)
+        return problem
     except (TypeError, ValueError):
         return None
 

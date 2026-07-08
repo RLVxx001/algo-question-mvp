@@ -282,6 +282,9 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             (store.root / "broken.json").write_text("{bad", encoding="utf-8")
             (store.root / "not_object.json").write_text("[]", encoding="utf-8")
             (store.root / "missing_fields.json").write_text(json.dumps({"id": "prob_bad"}), encoding="utf-8")
+            unsafe = problem.to_dict()
+            unsafe["id"] = "../packages_evil/prob_x"
+            (store.root / "unsafe_id.json").write_text(json.dumps(unsafe), encoding="utf-8")
 
             self.assertEqual([item.id for item in store.list()], [problem.id])
 
