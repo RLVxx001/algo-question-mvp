@@ -95,7 +95,10 @@ class WorkflowStore:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("workflow data must be an object")
-            return ProblemWorkflow.from_dict(data)
+            workflow = ProblemWorkflow.from_dict(data)
+            if workflow.problem_id != problem_id:
+                raise ValueError("workflow problem id does not match storage key")
+            return workflow
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
             raise KeyError(problem_id) from exc
 

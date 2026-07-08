@@ -377,6 +377,18 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             with self.assertRaises(KeyError):
                 store.get("prob_bad")
 
+    def test_workflow_store_get_rejects_mismatched_problem_id(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+        workflow.problem_id = "prob_other"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = WorkflowStore(Path(tmp) / "workflows")
+            store.path_for(problem.id).write_text(json.dumps(workflow.to_dict()), encoding="utf-8")
+
+            with self.assertRaises(KeyError):
+                store.get(problem.id)
+
     def test_server_workflow_endpoint_returns_not_found_for_invalid_workflow_file(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
