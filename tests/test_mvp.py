@@ -576,6 +576,47 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(sibling_dir.exists())
             self.assertTrue(sibling_archive.exists())
 
+    def test_server_remove_package_artifacts_unlinks_package_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+            outside_package = root / "outside_package"
+            outside_package.mkdir()
+            (outside_package / "problem.md").write_text("external", encoding="utf-8")
+            package_link = package_root / "prob_link"
+            package_link.symlink_to(outside_package, target_is_directory=True)
+
+            from app.server import _remove_package_artifacts
+
+            with patch("app.server.PACKAGE_ROOT", package_root):
+                removed = _remove_package_artifacts("prob_link")
+
+            self.assertTrue(removed)
+            self.assertFalse(package_link.exists())
+            self.assertTrue(outside_package.exists())
+            self.assertTrue((outside_package / "problem.md").exists())
+
+    def test_server_remove_package_artifacts_unlinks_archive_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package_root = root / "packages"
+            package_root.mkdir()
+            outside_archive = root / "outside.zip"
+            outside_archive.write_text("external zip", encoding="utf-8")
+            archive_link = package_root / "prob_link.zip"
+            archive_link.symlink_to(outside_archive)
+
+            from app.server import _remove_package_artifacts
+
+            with patch("app.server.PACKAGE_ROOT", package_root):
+                removed = _remove_package_artifacts("prob_link")
+
+            self.assertTrue(removed)
+            self.assertFalse(archive_link.exists())
+            self.assertTrue(outside_archive.exists())
+            self.assertEqual(outside_archive.read_text(encoding="utf-8"), "external zip")
+
     def test_report_store_persists_review_and_validation_without_package(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
@@ -817,6 +858,48 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
                 handler._reports(problem.id)
 
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertIsNone(payload["package"])
+
+    def test_reports_endpoint_ignores_symlinked_package_directory(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            outside = root / "outside_package"
+            outside.mkdir()
+            (outside / "review_report.json").write_text(
+                json.dumps({"problem_id": problem.id, "passed": True}),
+                encoding="utf-8",
+            )
+            (outside / "validation_report.json").write_text(
+                json.dumps({"problem_id": problem.id, "sample_passed": True, "fuzz_passed": True}),
+                encoding="utf-8",
+            )
+            package_root.mkdir(parents=True)
+            (package_root / problem.id).symlink_to(outside, target_is_directory=True)
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._reports(problem.id)
+
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertIsNone(payload["review"])
+            self.assertIsNone(payload["validation"])
             self.assertIsNone(payload["package"])
 
     def test_reports_endpoint_marks_blocked_package_from_failed_reports(self) -> None:

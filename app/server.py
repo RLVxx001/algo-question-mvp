@@ -315,13 +315,13 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
             return
 
-        package_dir = PACKAGE_ROOT / problem_id
+        package_dir = _existing_package_dir(problem_id)
         review = REPORT_STORE.get_review(problem_id) or _read_json_file(
-            package_dir / "review_report.json",
+            package_dir / "review_report.json" if package_dir is not None else None,
             expected_problem_id=problem_id,
         )
         validation = REPORT_STORE.get_validation(problem_id) or _read_json_file(
-            package_dir / "validation_report.json",
+            package_dir / "validation_report.json" if package_dir is not None else None,
             expected_problem_id=problem_id,
         )
         package = _package_report_status(problem_id, package_dir, review, validation)
@@ -545,8 +545,18 @@ def _runtime_info() -> dict:
     }
 
 
-def _read_json_file(path: Path, expected_problem_id: str | None = None) -> dict | None:
-    if not path.exists():
+def _existing_package_dir(problem_id: str) -> Path | None:
+    raw_path = PACKAGE_ROOT / problem_id
+    if raw_path.is_symlink():
+        return None
+    package_dir = resolve_under(PACKAGE_ROOT, problem_id)
+    if package_dir is None or not package_dir.is_dir():
+        return None
+    return package_dir
+
+
+def _read_json_file(path: Path | None, expected_problem_id: str | None = None) -> dict | None:
+    if path is None or not path.exists():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -567,8 +577,13 @@ def _package_info(problem_id: str, package_dir: Path) -> dict:
     }
 
 
-def _package_report_status(problem_id: str, package_dir: Path, review: dict | None, validation: dict | None) -> dict | None:
-    if package_dir.is_dir():
+def _package_report_status(
+    problem_id: str,
+    package_dir: Path | None,
+    review: dict | None,
+    validation: dict | None,
+) -> dict | None:
+    if package_dir is not None and package_dir.is_dir():
         return _package_info(problem_id, package_dir)
     if _reports_block_package(review, validation):
         return {
@@ -610,16 +625,30 @@ def _invalidate_problem_outputs(problem_id: str) -> dict:
 
 
 def _remove_package_artifacts(problem_id: str) -> bool:
+    raw_package_dir = _package_root_child(problem_id)
+    raw_archive_path = _package_root_child(f"{problem_id}.zip")
     package_dir = resolve_under(PACKAGE_ROOT, problem_id)
     archive_path = resolve_under(PACKAGE_ROOT, f"{problem_id}.zip")
     removed = False
-    if package_dir is not None and package_dir.is_dir():
+    if raw_package_dir is not None and raw_package_dir.is_symlink():
+        raw_package_dir.unlink()
+        removed = True
+    elif package_dir is not None and package_dir.is_dir():
         shutil.rmtree(package_dir)
         removed = True
-    if archive_path is not None and archive_path.exists():
+    if raw_archive_path is not None and raw_archive_path.is_symlink():
+        raw_archive_path.unlink()
+        removed = True
+    elif archive_path is not None and archive_path.exists():
         archive_path.unlink()
         removed = True
     return removed
+
+
+def _package_root_child(name: str) -> Path | None:
+    if not name or "/" in name or "\\" in name or name in {".", ".."}:
+        return None
+    return PACKAGE_ROOT / name
 
 
 def _problem_request_from_body(body: dict) -> ProblemRequest:
