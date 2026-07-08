@@ -930,6 +930,44 @@ test("finishing stale review keeps current problem review button disabled", asyn
   assert.equal(vm.runInContext("state.busy['review:prob_b']", context), true);
 });
 
+test("runValidate stores review report from execution block", async () => {
+  const context = loadAppContext();
+  const review = {
+    problem_id: "prob_a",
+    passed: false,
+    score: 65,
+    issues: [{ severity: "error", field: "reference_solution", message: "dangerous local-execution code" }],
+    checks: ["dangerous local-execution patterns checked"],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/validate");
+    assert.equal(options.method, "POST");
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: "validation blocked by dangerous generated code",
+        review,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = { id: "prob_a", title: "Problem A" };
+      state.activeTab = "statement";
+    `,
+    context,
+  );
+
+  await context.runValidate();
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.activeTab", context), "reports");
+  assert.equal(context.isOperationBusy("validate:prob_a"), false);
+});
+
 test("renderAll keeps selected problem action buttons disabled while operations are busy", () => {
   const context = loadAppContext();
   vm.runInContext(
@@ -1211,6 +1249,56 @@ test("rerunFailedCase sends empty failed input", async () => {
   await context.rerunFailedCase(0);
 
   assert.equal(requestCount, 1);
+  assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
+});
+
+test("rerunFailedCase stores review report from execution block", async () => {
+  const context = loadAppContext();
+  const problem = {
+    id: "prob_a",
+    title: "Problem A",
+    source: "mock",
+    statement_language: "zh",
+  };
+  const validation = {
+    sample_passed: false,
+    fuzz_passed: false,
+    failed_cases: [{ input: "1\n", expected: "1\n", actual: "0\n", reason: "wrong answer" }],
+  };
+  const review = {
+    problem_id: "prob_a",
+    passed: false,
+    score: 65,
+    issues: [{ severity: "error", field: "brute_force_solution", message: "dangerous local-execution code" }],
+    checks: ["dangerous local-execution patterns checked"],
+  };
+
+  context.renderAll = () => {};
+  context.fetch = async (path, options = {}) => {
+    assert.equal(path, "/api/problems/prob_a/rerun");
+    assert.equal(options.method, "POST");
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: "rerun blocked by dangerous generated code",
+        review,
+      }),
+    };
+  };
+  vm.runInContext(
+    `
+      state.selected = ${JSON.stringify(problem)};
+      state.activeTab = "statement";
+      state.reports.prob_a = { validation: ${JSON.stringify(validation)} };
+    `,
+    context,
+  );
+
+  await context.rerunFailedCase(0);
+
+  assert.deepEqual(plain(vm.runInContext("state.reports.prob_a.review", context)), review);
+  assert.equal(vm.runInContext("state.activeTab", context), "reports");
   assert.equal(context.isOperationBusy("rerun:prob_a:0"), false);
 });
 

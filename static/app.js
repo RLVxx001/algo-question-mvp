@@ -306,6 +306,14 @@ function updateProblemReports(id, updates) {
   state.reruns = merged.reruns;
 }
 
+function storeBlockedReviewReport(id, payload) {
+  if (!id || !payload?.review) return false;
+  updateProblemReports(id, { review: payload.review });
+  state.activeTab = "reports";
+  renderAll();
+  return true;
+}
+
 function invalidateProblemReports(id) {
   const invalidated = invalidateProblemState(state.reports[id], state.reruns, id);
   state.reports[id] = invalidated.reports;
@@ -996,7 +1004,11 @@ async function rerunFailedCase(index) {
     renderDetail();
     log("复跑完成", `passed=${data.passed}`, data.passed ? "ok" : "bad");
   } catch (err) {
-    log("复跑失败", err.message, "bad");
+    if (storeBlockedReviewReport(problem.id, err.payload)) {
+      log("复跑被阻止", err.message, "warn");
+    } else {
+      log("复跑失败", err.message, "bad");
+    }
   } finally {
     endOperation(operationKey);
     renderAll();
@@ -1345,7 +1357,11 @@ async function runValidate() {
     renderAll();
     log("验证完成", `fuzz=${data.fuzz_passed}, cases=${data.total_cases}`, data.fuzz_passed ? "ok" : "bad");
   } catch (err) {
-    log("验证失败", err.message, "bad");
+    if (storeBlockedReviewReport(id, err.payload)) {
+      log("验证被阻止", err.message, "warn");
+    } else {
+      log("验证失败", err.message, "bad");
+    }
   } finally {
     endOperation(operationKey);
     setBusy(els.validateButton, false, "");
