@@ -556,7 +556,7 @@ def _existing_package_dir(problem_id: str) -> Path | None:
 
 
 def _read_json_file(path: Path | None, expected_problem_id: str | None = None) -> dict | None:
-    if path is None or not path.exists():
+    if path is None or path.is_symlink() or not path.is_file():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
