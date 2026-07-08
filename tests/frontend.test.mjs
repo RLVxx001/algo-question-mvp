@@ -295,6 +295,37 @@ test("operation lock blocks duplicate operations until released", () => {
   assert.equal(context.beginOperation("review:prob_a"), true);
 });
 
+test("loadProblems logs list failures and preserves existing problems", async () => {
+  const context = loadAppContext();
+  const existing = [
+    {
+      id: "prob_a",
+      title: "Existing",
+      topic: "array",
+      difficulty: "easy",
+      source: "mock",
+      statement_language: "zh",
+      tags: ["array"],
+    },
+  ];
+  const logs = [];
+
+  context.fetch = async () => ({
+    ok: false,
+    status: 500,
+    json: async () => ({ error: "store unavailable" }),
+  });
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  vm.runInContext(`state.problems = ${JSON.stringify(existing)};`, context);
+
+  await assert.doesNotReject(() => context.loadProblems(false));
+
+  assert.deepEqual(plain(vm.runInContext("state.problems", context)), existing);
+  assert.deepEqual(logs, [{ title: "题目列表读取失败", message: "store unavailable", level: "warn" }]);
+});
+
 test("runReview ignores duplicate clicks while request is in flight", async () => {
   const context = loadAppContext();
   let resolveReview;

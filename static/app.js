@@ -142,13 +142,17 @@ function renderRuntime() {
 }
 
 async function loadProblems(selectLatest = false) {
-  const data = await api("/api/problems");
-  state.problems = data.list || [];
-  renderProblemList();
-  if (selectLatest && state.problems.length) {
-    await selectProblem(state.problems[state.problems.length - 1].id);
-  } else if (state.selected) {
+  try {
+    const data = await api("/api/problems");
+    state.problems = data.list || [];
     renderProblemList();
+    if (selectLatest && state.problems.length) {
+      await selectProblem(state.problems[state.problems.length - 1].id);
+    } else if (state.selected) {
+      renderProblemList();
+    }
+  } catch (err) {
+    log("题目列表读取失败", err.message, "warn");
   }
 }
 
