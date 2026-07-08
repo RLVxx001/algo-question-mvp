@@ -242,6 +242,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, payload)
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except ValidationError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
@@ -259,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, rerun_case(problem, case_input, timeout_seconds).to_dict())
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
@@ -344,6 +348,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except ValidationError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
@@ -545,11 +551,19 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
 
 
 def _clamp_rounds(value: object) -> int:
-    return max(1, min(int(value), MAX_VALIDATION_ROUNDS))
+    try:
+        rounds = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("rounds must be an integer") from exc
+    return max(1, min(rounds, MAX_VALIDATION_ROUNDS))
 
 
 def _clamp_timeout(value: object) -> float:
-    return max(MIN_TIMEOUT_SECONDS, min(float(value), MAX_TIMEOUT_SECONDS))
+    try:
+        timeout_seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("timeout_seconds must be a number") from exc
+    return max(MIN_TIMEOUT_SECONDS, min(timeout_seconds, MAX_TIMEOUT_SECONDS))
 
 
 def _public_workflow_result(result: dict) -> dict:

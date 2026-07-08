@@ -668,6 +668,78 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertEqual(_clamp_timeout(99), 10.0)
         self.assertEqual(_clamp_timeout("1.5"), 1.5)
 
+    def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": "not-a-number"}
+
+            with patch("app.server.STORE", problem_store):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "rounds must be an integer")
+
+    def test_server_rerun_rejects_invalid_timeout_as_bad_request(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "input": problem.samples[0]["input"],
+                "timeout_seconds": "slow",
+            }
+
+            with patch("app.server.STORE", problem_store):
+                handler._rerun(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "timeout_seconds must be a number")
+
+    def test_server_package_rejects_invalid_rounds_as_bad_request(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": "many"}
+
+            with patch("app.server.STORE", problem_store):
+                handler._package(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "rounds must be an integer")
+
 
 if __name__ == "__main__":
     unittest.main()

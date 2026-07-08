@@ -174,6 +174,19 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     )
     _assert(pre_package_reports["package"] is None, "package info is absent before package export")
 
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/validate",
+            {"rounds": "invalid", "timeout_seconds": 1.5},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "invalid validation rounds returns 400")
+        _assert(body["error"] == "rounds must be an integer", "invalid validation rounds has clear error")
+    else:
+        raise AssertionError("invalid validation rounds unexpectedly succeeded")
+
     rerun = _post_json(
         f"{base_url}/api/problems/{problem_id}/rerun",
         {"input": problem["samples"][0]["input"], "timeout_seconds": 1.5},
