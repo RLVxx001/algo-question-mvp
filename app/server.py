@@ -504,7 +504,11 @@ def _runtime_info() -> dict:
 def _read_json_file(path: Path) -> dict | None:
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _package_info(problem_id: str, package_dir: Path) -> dict:

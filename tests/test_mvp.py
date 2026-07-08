@@ -371,6 +371,17 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertIsNone(store.get_validation(problem.id))
             self.assertFalse(store.delete(problem.id))
 
+    def test_report_store_ignores_invalid_json_report_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ReportStore(Path(tmp))
+            report_dir = store.dir_for("prob_bad")
+            report_dir.mkdir(parents=True)
+            (report_dir / "review_report.json").write_text("{bad", encoding="utf-8")
+            (report_dir / "validation_report.json").write_text("[]", encoding="utf-8")
+
+            self.assertIsNone(store.get_review("prob_bad"))
+            self.assertIsNone(store.get_validation("prob_bad"))
+
     def test_server_persists_review_and_validation_reports_before_package_export(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
@@ -408,6 +419,42 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertTrue(reports["review"]["passed"])
             self.assertTrue(reports["validation"]["fuzz_passed"])
             self.assertIsNone(reports["package"])
+
+    def test_reports_endpoint_ignores_invalid_package_report_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            package_dir = package_root / problem.id
+            package_dir.mkdir(parents=True)
+            (package_dir / "review_report.json").write_text("{bad", encoding="utf-8")
+            (package_dir / "validation_report.json").write_text("[]", encoding="utf-8")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._reports(problem.id)
+
+            handler.send_response.assert_called_once_with(200)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertIsNone(payload["review"])
+            self.assertIsNone(payload["validation"])
+            self.assertFalse(payload["package"]["package_blocked"])
+            self.assertEqual(payload["package"]["download_url"], f"/api/problems/{problem.id}/package/download")
 
     def test_reports_endpoint_marks_blocked_package_from_failed_reports(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
