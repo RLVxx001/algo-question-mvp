@@ -152,7 +152,7 @@ DELETE /api/problems/{problem_id}
 GET /api/problems/{problem_id}/reports
 ```
 
-会返回已持久化的审查报告、验证报告、题目包目录和 ZIP 下载地址；没有运行过的部分返回 `null`。
+会返回已持久化的审查报告、验证报告、题目包目录和 ZIP 下载地址；没有运行过的部分返回 `null`。如果没有导出目录，但最新审查或验证报告显示导出条件不满足，`package` 会返回 `package_blocked: true`，用于刷新后继续展示阻断原因。
 
 报告持久化位置：
 

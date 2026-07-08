@@ -272,9 +272,7 @@ class Handler(BaseHTTPRequestHandler):
         package_dir = PACKAGE_ROOT / problem_id
         review = REPORT_STORE.get_review(problem_id) or _read_json_file(package_dir / "review_report.json")
         validation = REPORT_STORE.get_validation(problem_id) or _read_json_file(package_dir / "validation_report.json")
-        package = None
-        if package_dir.exists():
-            package = _package_info(problem_id, package_dir)
+        package = _package_report_status(problem_id, package_dir, review, validation)
 
         self._json(
             HTTPStatus.OK,
@@ -473,9 +471,32 @@ def _read_json_file(path: Path) -> dict | None:
 
 def _package_info(problem_id: str, package_dir: Path) -> dict:
     return {
+        "package_blocked": False,
         "package_dir": str(package_dir),
         "download_url": _package_download_url(problem_id),
     }
+
+
+def _package_report_status(problem_id: str, package_dir: Path, review: dict | None, validation: dict | None) -> dict | None:
+    if package_dir.exists():
+        return _package_info(problem_id, package_dir)
+    if _reports_block_package(review, validation):
+        return {
+            "package_blocked": True,
+            "error": "package blocked by failed review or validation",
+            "review_passed": review.get("passed") if isinstance(review, dict) else None,
+            "sample_passed": validation.get("sample_passed") if isinstance(validation, dict) else None,
+            "fuzz_passed": validation.get("fuzz_passed") if isinstance(validation, dict) else None,
+        }
+    return None
+
+
+def _reports_block_package(review: dict | None, validation: dict | None) -> bool:
+    review_failed = isinstance(review, dict) and review.get("passed") is False
+    validation_failed = isinstance(validation, dict) and (
+        validation.get("sample_passed") is False or validation.get("fuzz_passed") is False
+    )
+    return review_failed or validation_failed
 
 
 def _package_download_url(problem_id: str) -> str:

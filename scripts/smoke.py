@@ -253,7 +253,10 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
 
     blocked_reports = _get_json(f"{base_url}/api/problems/{problem_id}/reports")
     _assert(blocked_reports["validation"]["sample_passed"] is False, "blocked validation report persists")
-    _assert(blocked_reports["package"] is None, "blocked package does not create package info")
+    _assert(
+        blocked_reports["package"]["package_blocked"] is True,
+        "blocked package status persists after report reload",
+    )
     try:
         _get_bytes(f"{base_url}/api/problems/{problem_id}/package/download")
     except urllib.error.HTTPError as exc:
