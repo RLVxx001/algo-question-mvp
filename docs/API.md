@@ -55,6 +55,8 @@ POST /api/problems/generate
 Content-Type: application/json
 ```
 
+所有 POST JSON 请求体都必须是对象；数组、字符串或非法 JSON 会返回 `400`。
+
 请求：
 
 ```json

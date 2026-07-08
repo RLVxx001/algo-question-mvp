@@ -187,6 +187,15 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     else:
         raise AssertionError("invalid validation rounds unexpectedly succeeded")
 
+    try:
+        _post_raw_json(f"{base_url}/api/problems/{problem_id}/validate", b"[]", timeout=30)
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "non-object JSON body returns 400")
+        _assert(body["error"] == "JSON body must be an object", "non-object JSON body has clear error")
+    else:
+        raise AssertionError("non-object JSON body unexpectedly succeeded")
+
     rerun = _post_json(
         f"{base_url}/api/problems/{problem_id}/rerun",
         {"input": problem["samples"][0]["input"], "timeout_seconds": 1.5},
@@ -327,9 +336,13 @@ def _assert_deleted(base_url: str, problem_id: str) -> None:
 
 
 def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
+    return _post_raw_json(url, json.dumps(payload).encode("utf-8"), timeout)
+
+
+def _post_raw_json(url: str, body: bytes, timeout: int) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
-        data=json.dumps(payload).encode("utf-8"),
+        data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )

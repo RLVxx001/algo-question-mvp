@@ -398,7 +398,13 @@ class Handler(BaseHTTPRequestHandler):
         if length == 0:
             return default if default is not None else {}
         raw = self.rfile.read(length).decode("utf-8")
-        return json.loads(raw)
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("invalid JSON body") from exc
+        if not isinstance(body, dict):
+            raise ValueError("JSON body must be an object")
+        return body
 
     def _json(self, status: HTTPStatus, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
