@@ -1205,7 +1205,8 @@ function clearRerunsForProblem(problemId) {
 
 function bindEvents() {
   els.generateForm.addEventListener("submit", handleGenerate);
-  els.topicInput.addEventListener("input", () => markTopicInvalid(false));
+  els.topicInput.addEventListener("input", () => markGenerationInvalid());
+  els.countInput.addEventListener("input", () => markGenerationInvalid());
   els.refreshButton.addEventListener("click", () => loadProblems(false));
   els.problemList.addEventListener("click", (event) => {
     const button = event.target.closest(".problem-item");

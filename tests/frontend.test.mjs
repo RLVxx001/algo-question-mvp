@@ -4,26 +4,34 @@ import test from "node:test";
 import vm from "node:vm";
 
 function loadAppContext() {
-  const element = {
-    checked: false,
-    classList: { toggle() {} },
-    dataset: {},
-    disabled: false,
-    innerHTML: "",
-    textContent: "",
-    value: "",
-    addEventListener() {},
-    prepend() {},
-    querySelector() {
-      return { dataset: {}, disabled: false, innerHTML: "" };
-    },
-  };
+  const elements = {};
+  function makeElement() {
+    const listeners = {};
+    return {
+      checked: false,
+      classList: { toggle() {} },
+      dataset: {},
+      disabled: false,
+      innerHTML: "",
+      listeners,
+      textContent: "",
+      value: "",
+      addEventListener(event, callback) {
+        listeners[event] = callback;
+      },
+      prepend() {},
+      querySelector() {
+        return { dataset: {}, disabled: false, innerHTML: "" };
+      },
+    };
+  }
   const documentStub = {
     createElement() {
       return { className: "", innerHTML: "", prepend() {} };
     },
-    getElementById() {
-      return element;
+    getElementById(id) {
+      elements[id] = elements[id] || makeElement();
+      return elements[id];
     },
     querySelectorAll() {
       return [];
@@ -34,6 +42,7 @@ function loadAppContext() {
     document: documentStub,
     fetch: async () => ({ ok: true, json: async () => ({}) }),
     window: { location: { origin: "http://test.local" } },
+    __elements: elements,
   };
   vm.createContext(context);
   const source = readFileSync(new URL("../static/app.js", import.meta.url), "utf8").replace(/\ninit\(\);\s*$/, "\n");
@@ -273,4 +282,24 @@ test("invalidateProblemState clears reports and current problem reruns", () => {
   assert.deepEqual(plain(result.reruns), {
     "prob_b:0": { passed: true },
   });
+});
+
+test("topic input event clears generation validation state", () => {
+  const context = loadAppContext();
+
+  context.bindEvents();
+
+  const callback = context.__elements.topicInput.listeners.input;
+  assert.equal(typeof callback, "function");
+  assert.doesNotThrow(() => callback());
+});
+
+test("count input event clears generation validation state", () => {
+  const context = loadAppContext();
+
+  context.bindEvents();
+
+  const callback = context.__elements.countInput.listeners.input;
+  assert.equal(typeof callback, "function");
+  assert.doesNotThrow(() => callback());
 });
