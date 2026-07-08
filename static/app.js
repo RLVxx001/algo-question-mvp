@@ -722,6 +722,7 @@ function renderFailedCase(problem, failed, index) {
   const key = `${problem.id}:${index}`;
   const rerun = state.reruns[key];
   const hasInput = Boolean(failed.input);
+  const rerunBusy = isOperationBusy(`rerun:${problem.id}:${index}`);
   const rerunBlock = rerun
     ? `
       <div class="rerun-result ${rerun.passed ? "passed" : "failed"}">
@@ -742,7 +743,7 @@ function renderFailedCase(problem, failed, index) {
       </div>
       <div class="mini-toolbar">
         <button class="secondary-button copy-case-button" type="button" data-failed-index="${index}" ${hasInput ? "" : "disabled"}>复制输入</button>
-        <button class="secondary-button rerun-case-button" type="button" data-failed-index="${index}" ${hasInput ? "" : "disabled"}>复跑用例</button>
+        <button class="secondary-button rerun-case-button" type="button" data-failed-index="${index}" ${hasInput && !rerunBusy ? "" : "disabled"}>${rerunBusy ? "复跑中" : "复跑用例"}</button>
       </div>
       <h5>Input</h5>
       <pre>${escapeHtml(failed.input || "")}</pre>

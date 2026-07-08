@@ -392,6 +392,20 @@ test("renderWorkflow disables continue button while workflow operation is busy",
   assert.match(context.__elements.detailContent.innerHTML, /continueWorkflowButton[\s\S]*disabled/);
 });
 
+test("renderFailedCase disables rerun button while rerun is busy", () => {
+  const context = loadAppContext();
+  vm.runInContext(`state.busy["rerun:prob_a:0"] = true;`, context);
+
+  const html = context.renderFailedCase(
+    { id: "prob_a" },
+    { input: "1", expected: "1", actual: "0", reason: "wrong answer" },
+    0,
+  );
+
+  assert.match(html, /rerun-case-button[\s\S]*disabled/);
+  assert.match(html, /复跑中/);
+});
+
 test("continueWorkflow captures edit patch before rerendering", async () => {
   const context = loadAppContext();
   const originalProblem = {
