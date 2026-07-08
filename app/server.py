@@ -184,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
                 workflow,
                 problem,
                 PACKAGE_ROOT,
-                confirm_current=bool(body.get("confirm_current", True)),
+                confirm_current=_parse_bool(body.get("confirm_current", True), "confirm_current"),
             )
             problem = result.get("problem", problem)
             _persist_reports(problem.id, result.get("reports", {}))

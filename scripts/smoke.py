@@ -229,6 +229,31 @@ def main() -> int:
     _assert(workflow["workflow"]["current_step"] == "statement", "workflow is waiting at statement step")
     _assert(workflow["problem"]["constraints"] == [], "constraints are not generated before statement confirmation")
     _assert(workflow["problem"]["reference_solution"] == "", "solutions are not generated before statement confirmation")
+    not_confirmed = _post_json(
+        f"{base_url}/api/problems/{problem_id}/workflow/continue",
+        {"confirm_current": "false"},
+        timeout=30,
+    )
+    _assert(not_confirmed["workflow"]["status"] == "waiting_user", "string false confirmation keeps workflow waiting")
+    _assert(
+        not_confirmed["workflow"]["current_step"] == "statement",
+        "string false confirmation keeps current workflow step",
+    )
+    try:
+        _post_json(
+            f"{base_url}/api/problems/{problem_id}/workflow/continue",
+            {"confirm_current": "later"},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "invalid workflow confirmation flag returns 400")
+        _assert(
+            body["error"] == "confirm_current must be a boolean",
+            "invalid workflow confirmation flag has clear error",
+        )
+    else:
+        raise AssertionError("invalid workflow confirmation flag unexpectedly succeeded")
     continued = _post_json(
         f"{base_url}/api/problems/{problem_id}/workflow/continue",
         {

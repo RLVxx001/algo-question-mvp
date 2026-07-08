@@ -409,3 +409,5 @@ Content-Type: application/json
 ```
 
 `patch` 可选，用于在确认当前步骤时保存用户修改。
+
+`confirm_current` 默认 `true`；也兼容 `"true"` / `"false"` 这类字符串布尔值。其他字符串会返回 `400`，不会推进流程。

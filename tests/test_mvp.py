@@ -506,6 +506,73 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertEqual(payload["error"], "manual_steps contains unsupported step: unknown")
             self.assertEqual(problem_store.list(), [])
 
+    def test_server_workflow_continue_parses_string_false_confirmation(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement"])
+        workflow, result = advance_workflow(workflow, problem, Path(tempfile.gettempdir()) / "packages")
+        problem = result["problem"]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"confirm_current": "false"}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.WORKFLOW_STORE", workflow_store),
+                patch("app.server.PACKAGE_ROOT", root / "packages"),
+            ):
+                handler._continue_workflow(problem.id)
+
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["workflow"]["status"], "waiting_user")
+            self.assertEqual(payload["workflow"]["current_step"], "statement")
+            statement_step = next(step for step in payload["workflow"]["steps"] if step["key"] == "statement")
+            self.assertEqual(statement_step["status"], "waiting_user")
+
+    def test_server_workflow_continue_rejects_invalid_confirmation_flag(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False), manual_steps=["statement"])
+        workflow, result = advance_workflow(workflow, problem, Path(tempfile.gettempdir()) / "packages")
+        problem = result["problem"]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"confirm_current": "later"}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.WORKFLOW_STORE", workflow_store),
+            ):
+                handler._continue_workflow(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "confirm_current must be a boolean")
+
     def test_server_edit_invalidates_reports_and_package_artifacts(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         review = review_problem(problem)
