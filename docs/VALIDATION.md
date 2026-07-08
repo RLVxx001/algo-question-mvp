@@ -10,6 +10,10 @@
 - 样例是否至少两组，且包含 input/output。
 - 约束和标签是否存在。
 - 标准解、暴力解、生成器是否能通过 Python 语法编译。
+- 生成代码是否包含明显危险的本地执行能力，如 `subprocess`、`socket`、`urllib`、`open(`、`eval(`、`exec(` 等。
+- 题面、输入输出格式、题解是否过短。
+- 约束是否包含数字边界。
+- 数据生成器是否使用 seed 参数。
 - 题目主题是否体现在标题、题面或标签里。
 - 是否出现当前不支持的交互题、浮点精度题风险。
 
@@ -39,6 +43,22 @@ compare expected and actual
 - 重复元素统计错误
 - 负数处理错误
 - 样例对但随机数据不对
+
+验证报告会记录本次运行的 `rounds`、`timeout_seconds`、`sample_count`、`duration_ms`、`first_failed_seed` 和 `failure_stage`。这些字段用于在页面上快速判断失败发生在样例、生成器、暴力解、标准解还是标准/暴力输出比较阶段。
+
+## 4. 单用例复跑
+
+当验证报告里出现失败用例时，前端可以调用 `/api/problems/{id}/rerun` 只复跑这一个输入。
+
+复跑流程：
+
+```text
+failed input -> brute_force_solution.py -> expected
+failed input -> reference_solution.py -> actual
+compare expected and actual
+```
+
+复跑不会重新生成随机数据，也不会导出题目包。它用于定位一次失败是否稳定复现，以及标准解和暴力解当前分别输出什么。
 
 ## 不能覆盖的风险
 

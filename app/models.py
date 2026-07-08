@@ -102,11 +102,31 @@ class ValidationReport:
     total_cases: int
     failed_cases: list[ValidationCaseResult]
     notes: list[str]
+    rounds: int = 0
+    timeout_seconds: float = 0.0
+    sample_count: int = 0
+    duration_ms: int = 0
+    first_failed_seed: int | None = None
+    failure_stage: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["failed_cases"] = [case.to_dict() for case in self.failed_cases]
         return data
+
+
+@dataclass
+class RerunReport:
+    problem_id: str
+    input: str
+    expected: str
+    actual: str
+    passed: bool
+    error: str = ""
+    failure_stage: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass

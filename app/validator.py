@@ -3,9 +3,10 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
-from app.models import GeneratedProblem, ValidationCaseResult, ValidationReport
+from app.models import GeneratedProblem, RerunReport, ValidationCaseResult, ValidationReport
 
 
 class ValidationError(Exception):
@@ -13,8 +14,11 @@ class ValidationError(Exception):
 
 
 def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_seconds: float = 2.0) -> ValidationReport:
+    started = time.perf_counter()
     failed: list[ValidationCaseResult] = []
     notes: list[str] = []
+    first_failed_seed: int | None = None
+    failure_stage: str | None = None
 
     with tempfile.TemporaryDirectory(prefix="algo-problem-") as tmp:
         root = Path(tmp)
@@ -30,6 +34,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
             expected = sample["output"].strip()
             passed = actual.strip() == expected
             if not passed:
+                failure_stage = failure_stage or "sample"
                 failed.append(
                     ValidationCaseResult(
                         index=idx,
@@ -48,6 +53,8 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 case_input = _run_generator(gen_path, seed, timeout_seconds)
             except ValidationError as exc:
                 fuzz_passed = False
+                first_failed_seed = seed
+                failure_stage = "generator"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -63,6 +70,8 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 expected = _run_python(brute_path, case_input, timeout_seconds)
             except ValidationError as exc:
                 fuzz_passed = False
+                first_failed_seed = seed
+                failure_stage = "brute_force"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -78,6 +87,8 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 actual = _run_python(ref_path, case_input, timeout_seconds)
             except ValidationError as exc:
                 fuzz_passed = False
+                first_failed_seed = seed
+                failure_stage = "reference"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -91,6 +102,8 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
                 break
             if actual.strip() != expected.strip():
                 fuzz_passed = False
+                first_failed_seed = seed
+                failure_stage = "compare"
                 failed.append(
                     ValidationCaseResult(
                         index=seed,
@@ -117,6 +130,39 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
         total_cases=len(problem.samples) + rounds,
         failed_cases=failed,
         notes=notes,
+        rounds=rounds,
+        timeout_seconds=timeout_seconds,
+        sample_count=len(problem.samples),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        first_failed_seed=first_failed_seed,
+        failure_stage=failure_stage,
+    )
+
+
+def rerun_case(problem: GeneratedProblem, case_input: str, timeout_seconds: float = 2.0) -> RerunReport:
+    with tempfile.TemporaryDirectory(prefix="algo-rerun-") as tmp:
+        root = Path(tmp)
+        ref_path = root / "reference.py"
+        brute_path = root / "brute.py"
+        ref_path.write_text(problem.reference_solution, encoding="utf-8")
+        brute_path.write_text(problem.brute_force_solution, encoding="utf-8")
+        try:
+            expected = _run_python(brute_path, case_input, timeout_seconds).strip()
+        except ValidationError as exc:
+            return RerunReport(problem.id, case_input, "", "", False, str(exc), "brute_force")
+        try:
+            actual = _run_python(ref_path, case_input, timeout_seconds).strip()
+        except ValidationError as exc:
+            return RerunReport(problem.id, case_input, expected, "", False, str(exc), "reference")
+
+    passed = expected == actual
+    return RerunReport(
+        problem_id=problem.id,
+        input=case_input,
+        expected=expected,
+        actual=actual,
+        passed=passed,
+        failure_stage=None if passed else "compare",
     )
 
 

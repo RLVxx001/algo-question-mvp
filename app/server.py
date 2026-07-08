@@ -13,7 +13,7 @@ from app.generator import create_problem_draft, generate_problem
 from app.models import ProblemRequest
 from app.reviewer import review_problem
 from app.store import ProblemStore, WorkflowStore
-from app.validator import ValidationError, validate_problem
+from app.validator import ValidationError, rerun_case, validate_problem
 from app.workflow import advance_workflow, apply_problem_patch, create_workflow
 
 
@@ -77,6 +77,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/validate"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/validate")
             self._validate(problem_id)
+            return
+        if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/rerun"):
+            problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/rerun")
+            self._rerun(problem_id)
             return
         if parsed.path.startswith("/api/problems/") and parsed.path.endswith("/review"):
             problem_id = parsed.path.removeprefix("/api/problems/").removesuffix("/review")
@@ -189,13 +193,29 @@ class Handler(BaseHTTPRequestHandler):
         try:
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
-            rounds = int(body.get("rounds", 100))
-            report = validate_problem(problem, rounds=max(1, min(rounds, 1000)))
+            rounds = _clamp_rounds(body.get("rounds", 100))
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            report = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             self._json(HTTPStatus.OK, report.to_dict())
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except ValidationError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+        except Exception as exc:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+
+    def _rerun(self, problem_id: str) -> None:
+        try:
+            problem = STORE.get(problem_id)
+            body = self._read_json(default={})
+            case_input = body.get("input")
+            if not isinstance(case_input, str) or not case_input:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "input is required"})
+                return
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            self._json(HTTPStatus.OK, rerun_case(problem, case_input, timeout_seconds).to_dict())
+        except KeyError:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
         except Exception as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
@@ -236,8 +256,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             problem = STORE.get(problem_id)
             body = self._read_json(default={})
-            rounds = int(body.get("rounds", 100))
-            validation = validate_problem(problem, rounds=max(1, min(rounds, 1000)))
+            rounds = _clamp_rounds(body.get("rounds", 100))
+            timeout_seconds = _clamp_timeout(body.get("timeout_seconds", 2.0))
+            validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             review = review_problem(problem)
             package_dir = export_problem_package(problem, PACKAGE_ROOT, validation, review)
             self._json(
@@ -314,6 +335,14 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
         count=int(body.get("count", 1)),
         use_llm=bool(body.get("use_llm", True)),
     )
+
+
+def _clamp_rounds(value: object) -> int:
+    return max(1, min(int(value), 1000))
+
+
+def _clamp_timeout(value: object) -> float:
+    return max(0.2, min(float(value), 10.0))
 
 
 def _public_workflow_result(result: dict) -> dict:

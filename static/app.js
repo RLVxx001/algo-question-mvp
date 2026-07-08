@@ -4,6 +4,7 @@ const state = {
   activeTab: "statement",
   reports: {},
   workflows: {},
+  reruns: {},
 };
 
 const els = {
@@ -19,6 +20,11 @@ const els = {
   reviewButton: document.getElementById("reviewButton"),
   validateButton: document.getElementById("validateButton"),
   packageButton: document.getElementById("packageButton"),
+  roundsInput: document.getElementById("roundsInput"),
+  timeoutInput: document.getElementById("timeoutInput"),
+  problemSearchInput: document.getElementById("problemSearchInput"),
+  sourceFilter: document.getElementById("sourceFilter"),
+  languageFilter: document.getElementById("languageFilter"),
   sourceMetric: document.getElementById("sourceMetric"),
   languageMetric: document.getElementById("languageMetric"),
   reviewMetric: document.getElementById("reviewMetric"),
@@ -121,7 +127,12 @@ function renderProblemList() {
     els.problemList.innerHTML = `<div class="empty-state"><p>暂无题目</p></div>`;
     return;
   }
-  els.problemList.innerHTML = state.problems
+  const problems = filteredProblems();
+  if (!problems.length) {
+    els.problemList.innerHTML = `<div class="empty-state"><p>没有匹配的题目</p></div>`;
+    return;
+  }
+  els.problemList.innerHTML = problems
     .map((problem) => {
       const active = state.selected?.id === problem.id ? " active" : "";
       return `
@@ -137,6 +148,28 @@ function renderProblemList() {
       `;
     })
     .join("");
+}
+
+function filteredProblems() {
+  const keyword = String(els.problemSearchInput?.value || "").trim().toLowerCase();
+  const source = els.sourceFilter?.value || "all";
+  const language = els.languageFilter?.value || "all";
+  return state.problems.filter((problem) => {
+    const haystack = [
+      problem.id,
+      problem.title,
+      problem.topic,
+      (problem.tags || []).join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+    const sourceMatches =
+      source === "all" ||
+      problem.source === source ||
+      (source === "mock" && String(problem.source || "").startsWith("mock"));
+    const languageMatches = language === "all" || problem.statement_language === language;
+    return (!keyword || haystack.includes(keyword)) && sourceMatches && languageMatches;
+  });
 }
 
 function renderAll() {
@@ -160,9 +193,15 @@ function renderMetrics() {
   els.reviewMetric.textContent = reports.review
     ? `${reports.review.passed ? "通过" : "未通过"} / ${reports.review.score}`
     : "-";
-  els.validateMetric.textContent = reports.validation
-    ? `${reports.validation.fuzz_passed ? "通过" : "失败"} / ${reports.validation.total_cases}`
-    : "-";
+  if (reports.validation) {
+    const validationPassed = reports.validation.fuzz_passed && reports.validation.sample_passed;
+    const failedHint = reports.validation.failure_stage
+      ? ` / ${reports.validation.failure_stage}:${reports.validation.first_failed_seed ?? "-"}`
+      : "";
+    els.validateMetric.textContent = `${validationPassed ? "通过" : "失败"} / ${reports.validation.total_cases}${failedHint}`;
+  } else {
+    els.validateMetric.textContent = "-";
+  }
   els.packageMetric.textContent = reports.package ? "已导出" : "-";
 }
 
@@ -272,6 +311,7 @@ function renderEdit(problem) {
       <label><span>输入格式</span><textarea name="input_format">${escapeHtml(problem.input_format)}</textarea></label>
       <label><span>输出格式</span><textarea name="output_format">${escapeHtml(problem.output_format)}</textarea></label>
       <label><span>约束，每行一条</span><textarea name="constraints">${escapeHtml(problem.constraints.join("\n"))}</textarea></label>
+      <label><span>标签，每行一个</span><textarea name="tags">${escapeHtml((problem.tags || []).join("\n"))}</textarea></label>
       <label><span>题解</span><textarea name="solution_explanation">${escapeHtml(problem.solution_explanation)}</textarea></label>
       <div class="toolbar">
         <button class="primary-button" type="submit"><span class="button-icon">S</span><span>保存编辑</span></button>
@@ -347,13 +387,11 @@ function renderReports(problem) {
   const reports = state.reports[problem.id] || {};
   els.detailContent.innerHTML = `
     <h3>报告</h3>
-    <h4>审查</h4>
-    ${renderReportBlock(reports.review, "还没有运行审查。点击右上角“审查”后会在这里显示结果。")}
-    <h4>验证</h4>
-    ${renderReportBlock(reports.validation, "还没有运行验证。点击右上角“验证”后会在这里显示对拍结果。")}
-    <h4>导出</h4>
-    ${renderReportBlock(reports.package, "还没有导出题目包。点击右上角“导出”后会在这里显示目录。")}
+    ${renderReviewSummary(reports.review)}
+    ${renderValidationSummary(problem, reports.validation)}
+    ${renderPackageSummary(reports.package)}
   `;
+  bindReportActions(problem);
 }
 
 function renderReportBlock(report, emptyText) {
@@ -361,6 +399,184 @@ function renderReportBlock(report, emptyText) {
     return `<div class="empty-report">${escapeHtml(emptyText)}</div>`;
   }
   return `<pre>${escapeHtml(JSON.stringify(report, null, 2))}</pre>`;
+}
+
+function renderReviewSummary(report) {
+  if (!report) {
+    return `
+      <section class="report-card">
+        <div class="report-heading"><h4>审查</h4><span class="status-pill">未运行</span></div>
+        <div class="empty-report">还没有运行审查。</div>
+      </section>
+    `;
+  }
+  const issues = report.issues || [];
+  const errors = issues.filter((issue) => issue.severity === "error").length;
+  const warns = issues.filter((issue) => issue.severity === "warn").length;
+  const issueRows = issues.length
+    ? issues
+        .map(
+          (issue) => `
+            <li class="issue ${escapeHtml(issue.severity)}">
+              <strong>${escapeHtml(issue.severity)}</strong>
+              <span>${escapeHtml(issue.field)}</span>
+              <p>${escapeHtml(issue.message)}</p>
+            </li>
+          `,
+        )
+        .join("")
+    : `<li class="issue ok"><strong>ok</strong><span>all</span><p>未发现审查问题。</p></li>`;
+  return `
+    <section class="report-card">
+      <div class="report-heading">
+        <h4>审查</h4>
+        <span class="status-pill ${report.passed ? "completed" : "failed"}">${report.passed ? "通过" : "未通过"}</span>
+      </div>
+      <div class="summary-grid">
+        <div><span>分数</span><strong>${escapeHtml(report.score)}</strong></div>
+        <div><span>错误</span><strong>${errors}</strong></div>
+        <div><span>警告</span><strong>${warns}</strong></div>
+        <div><span>检查项</span><strong>${(report.checks || []).length}</strong></div>
+      </div>
+      <ul class="issue-list">${issueRows}</ul>
+      <details><summary>原始审查 JSON</summary>${renderReportBlock(report, "")}</details>
+    </section>
+  `;
+}
+
+function renderValidationSummary(problem, report) {
+  if (!report) {
+    return `
+      <section class="report-card">
+        <div class="report-heading"><h4>验证</h4><span class="status-pill">未运行</span></div>
+        <div class="empty-report">还没有运行验证。</div>
+      </section>
+    `;
+  }
+  const failedCases = report.failed_cases || [];
+  const caseRows = failedCases.length
+    ? failedCases.map((failed, index) => renderFailedCase(problem, failed, index)).join("")
+    : `<div class="empty-report">没有失败用例。</div>`;
+  return `
+    <section class="report-card">
+      <div class="report-heading">
+        <h4>验证</h4>
+        <span class="status-pill ${report.fuzz_passed && report.sample_passed ? "completed" : "failed"}">
+          ${report.fuzz_passed && report.sample_passed ? "通过" : "失败"}
+        </span>
+      </div>
+      <div class="summary-grid">
+        <div><span>样例</span><strong>${report.sample_passed ? "通过" : "失败"}</strong></div>
+        <div><span>对拍</span><strong>${report.fuzz_passed ? "通过" : "失败"}</strong></div>
+        <div><span>轮数</span><strong>${escapeHtml(report.rounds ?? "-")}</strong></div>
+        <div><span>总用例</span><strong>${escapeHtml(report.total_cases ?? "-")}</strong></div>
+        <div><span>超时</span><strong>${escapeHtml(report.timeout_seconds ?? "-")}s</strong></div>
+        <div><span>耗时</span><strong>${escapeHtml(report.duration_ms ?? "-")}ms</strong></div>
+        <div><span>失败 seed</span><strong>${escapeHtml(report.first_failed_seed ?? "-")}</strong></div>
+        <div><span>失败阶段</span><strong>${escapeHtml(report.failure_stage ?? "-")}</strong></div>
+      </div>
+      <div class="failed-case-list">${caseRows}</div>
+      <details><summary>原始验证 JSON</summary>${renderReportBlock(report, "")}</details>
+    </section>
+  `;
+}
+
+function renderFailedCase(problem, failed, index) {
+  const key = `${problem.id}:${index}`;
+  const rerun = state.reruns[key];
+  const hasInput = Boolean(failed.input);
+  const rerunBlock = rerun
+    ? `
+      <div class="rerun-result ${rerun.passed ? "passed" : "failed"}">
+        <strong>复跑：${rerun.passed ? "通过" : "失败"}</strong>
+        ${rerun.error ? `<p>${escapeHtml(rerun.error)}</p>` : ""}
+        <div class="code-split compact">
+          <pre>${escapeHtml(rerun.expected)}</pre>
+          <pre>${escapeHtml(rerun.actual)}</pre>
+        </div>
+      </div>
+    `
+    : "";
+  return `
+    <article class="failed-case">
+      <div class="report-heading">
+        <h5>失败用例 ${index + 1}</h5>
+        <span class="status-pill failed">${escapeHtml(failed.reason || "failed")}</span>
+      </div>
+      <div class="mini-toolbar">
+        <button class="secondary-button copy-case-button" type="button" data-failed-index="${index}" ${hasInput ? "" : "disabled"}>复制输入</button>
+        <button class="secondary-button rerun-case-button" type="button" data-failed-index="${index}" ${hasInput ? "" : "disabled"}>复跑用例</button>
+      </div>
+      <h5>Input</h5>
+      <pre>${escapeHtml(failed.input || "")}</pre>
+      <div class="code-split compact">
+        <div><h5>Expected</h5><pre>${escapeHtml(failed.expected || "")}</pre></div>
+        <div><h5>Actual</h5><pre>${escapeHtml(failed.actual || "")}</pre></div>
+      </div>
+      ${rerunBlock}
+    </article>
+  `;
+}
+
+function renderPackageSummary(report) {
+  if (!report) {
+    return `
+      <section class="report-card">
+        <div class="report-heading"><h4>导出</h4><span class="status-pill">未导出</span></div>
+        <div class="empty-report">还没有导出题目包。</div>
+      </section>
+    `;
+  }
+  return `
+    <section class="report-card">
+      <div class="report-heading"><h4>导出</h4><span class="status-pill completed">已导出</span></div>
+      <div class="empty-report">${escapeHtml(report.package_dir || "已生成题目包")}</div>
+      <details><summary>原始导出 JSON</summary>${renderReportBlock(report, "")}</details>
+    </section>
+  `;
+}
+
+function bindReportActions(problem) {
+  document.querySelectorAll(".copy-case-button").forEach((button) => {
+    button.addEventListener("click", () => copyFailedCase(problem, Number(button.dataset.failedIndex)));
+  });
+  document.querySelectorAll(".rerun-case-button").forEach((button) => {
+    button.addEventListener("click", () => rerunFailedCase(Number(button.dataset.failedIndex)));
+  });
+}
+
+async function copyFailedCase(problem, index) {
+  const failed = state.reports[problem.id]?.validation?.failed_cases?.[index];
+  if (!failed?.input) return;
+  try {
+    await navigator.clipboard.writeText(failed.input);
+    log("已复制失败输入", `case=${index + 1}`, "ok");
+  } catch (err) {
+    log("复制失败", err.message, "warn");
+  }
+}
+
+async function rerunFailedCase(index) {
+  const problem = state.selected;
+  const failed = state.reports[problem?.id]?.validation?.failed_cases?.[index];
+  if (!problem || !failed?.input) return;
+  try {
+    const data = await api(`/api/problems/${problem.id}/rerun`, {
+      method: "POST",
+      body: JSON.stringify({
+        input: failed.input,
+        timeout_seconds: Number(els.timeoutInput?.value || 2),
+      }),
+    });
+    state.reruns[`${problem.id}:${index}`] = data;
+    renderAll();
+    state.activeTab = "reports";
+    renderTabs();
+    renderDetail();
+    log("复跑完成", `passed=${data.passed}`, data.passed ? "ok" : "bad");
+  } catch (err) {
+    log("复跑失败", err.message, "bad");
+  }
 }
 
 function setBusy(button, busy, text) {
@@ -433,7 +649,18 @@ function problemPatchFromEditForm(form) {
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean),
+    tags: String(form.get("tags") || "")
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean),
     solution_explanation: String(form.get("solution_explanation") || ""),
+  };
+}
+
+function validationOptions() {
+  return {
+    rounds: Number(els.roundsInput?.value || 100),
+    timeout_seconds: Number(els.timeoutInput?.value || 2),
   };
 }
 
@@ -519,7 +746,7 @@ async function runValidate() {
   try {
     const data = await api(`/api/problems/${id}/validate`, {
       method: "POST",
-      body: JSON.stringify({ rounds: 100 }),
+      body: JSON.stringify(validationOptions()),
     });
     state.reports[id] = { ...(state.reports[id] || {}), validation: data };
     renderAll();
@@ -538,7 +765,7 @@ async function runPackage() {
   try {
     const data = await api(`/api/problems/${id}/package`, {
       method: "POST",
-      body: JSON.stringify({ rounds: 100 }),
+      body: JSON.stringify(validationOptions()),
     });
     state.reports[id] = {
       ...(state.reports[id] || {}),
@@ -567,6 +794,10 @@ function bindEvents() {
   els.packageButton.addEventListener("click", runPackage);
   els.clearLogButton.addEventListener("click", () => {
     els.activityLog.innerHTML = "";
+  });
+  [els.problemSearchInput, els.sourceFilter, els.languageFilter].forEach((control) => {
+    control?.addEventListener("input", renderProblemList);
+    control?.addEventListener("change", renderProblemList);
   });
   document.querySelectorAll(".tab").forEach((button) => {
     button.addEventListener("click", () => {

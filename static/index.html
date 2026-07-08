@@ -75,6 +75,21 @@
             <h2>题目列表</h2>
             <button id="refreshButton" class="icon-button" type="button" title="刷新">R</button>
           </div>
+          <div class="filter-row">
+            <input id="problemSearchInput" class="filter-input" aria-label="搜索题目、知识点、标签" placeholder="搜索题目、知识点、标签">
+            <select id="sourceFilter" class="filter-select" aria-label="来源过滤">
+              <option value="all">全部来源</option>
+              <option value="llm">LLM</option>
+              <option value="mock">模板</option>
+              <option value="mock-after-llm-failure">模型失败降级</option>
+              <option value="mock-after-language-mismatch">语言不符降级</option>
+            </select>
+            <select id="languageFilter" class="filter-select" aria-label="语言过滤">
+              <option value="all">全部语言</option>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
           <div id="problemList" class="problem-list"></div>
         </section>
       </aside>
@@ -86,6 +101,14 @@
             <h2 id="currentTitle">等待选择题目</h2>
           </div>
           <div class="toolbar">
+            <label class="compact-field">
+              <span>轮数</span>
+              <input id="roundsInput" type="number" min="1" max="1000" value="100">
+            </label>
+            <label class="compact-field">
+              <span>超时</span>
+              <input id="timeoutInput" type="number" min="0.2" max="10" step="0.1" value="2">
+            </label>
             <button id="reviewButton" class="secondary-button" type="button" disabled>
               <span class="button-icon">?</span>
               <span>审查</span>

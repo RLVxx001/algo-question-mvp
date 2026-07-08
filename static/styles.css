@@ -29,7 +29,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -116,7 +117,10 @@ input {
 
 .field input[type="text"],
 .field input:not([type]),
-.field input[type="number"] {
+.field input[type="number"],
+.filter-input,
+.filter-select,
+.compact-field input {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -124,6 +128,16 @@ input {
   padding: 8px 10px;
   background: #fff;
   color: var(--text);
+}
+
+.filter-row {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filter-select {
+  appearance: none;
 }
 
 .segmented {
@@ -344,6 +358,24 @@ input {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.compact-field {
+  display: grid;
+  gap: 4px;
+  min-width: 84px;
+}
+
+.compact-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.compact-field input {
+  min-height: 36px;
+  padding: 7px 8px;
 }
 
 .status-grid {
@@ -576,6 +608,135 @@ pre {
   gap: 12px;
 }
 
+.code-split.compact {
+  margin-top: 8px;
+}
+
+.report-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.report-heading h4,
+.report-heading h5 {
+  margin: 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.summary-grid div {
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+}
+
+.summary-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.summary-grid strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.issue-list,
+.failed-case-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue,
+.failed-case {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+}
+
+.issue {
+  display: grid;
+  grid-template-columns: 72px 120px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.issue strong {
+  text-transform: uppercase;
+}
+
+.issue.error strong,
+.issue.warn strong {
+  color: var(--bad);
+}
+
+.issue.warn strong {
+  color: var(--warn);
+}
+
+.issue p {
+  margin: 0;
+}
+
+.failed-case {
+  display: grid;
+  gap: 10px;
+}
+
+.failed-case h5 {
+  margin: 0;
+}
+
+.mini-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-toolbar .secondary-button {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.rerun-result {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+}
+
+.rerun-result.passed {
+  border-color: #b7e4c7;
+}
+
+.rerun-result.failed {
+  border-color: #fecaca;
+}
+
 .activity-panel {
   min-height: 640px;
   padding: 12px;
@@ -655,7 +816,8 @@ pre {
   }
 
   .status-grid,
-  .code-split {
+  .code-split,
+  .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -667,7 +829,9 @@ pre {
   }
 
   .status-grid,
-  .code-split {
+  .code-split,
+  .summary-grid,
+  .issue {
     grid-template-columns: 1fr;
   }
 

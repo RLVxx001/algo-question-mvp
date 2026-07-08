@@ -97,7 +97,10 @@ Content-Type: application/json
 请求：
 
 ```json
-{"rounds": 100}
+{
+  "rounds": 100,
+  "timeout_seconds": 2
+}
 ```
 
 验证内容：
@@ -106,6 +109,48 @@ Content-Type: application/json
 - 用数据生成器生成随机用例。
 - 暴力解和标准解对拍。
 - `rounds` 范围限制为 1 到 1000。
+- `timeout_seconds` 为每次运行标准解、暴力解或生成器的超时时间，范围限制为 0.2 到 10。
+
+响应会包含运行元数据：
+
+- `rounds`: 实际执行的随机轮数。
+- `timeout_seconds`: 实际使用的单进程超时。
+- `sample_count`: 样例数量。
+- `duration_ms`: 本次验证总耗时。
+- `first_failed_seed`: 第一条随机失败用例的 seed；样例失败或无失败时为 `null`。
+- `failure_stage`: `sample`、`generator`、`brute_force`、`reference`、`compare` 或 `null`。
+
+## 复跑单个用例
+
+```http
+POST /api/problems/{problem_id}/rerun
+Content-Type: application/json
+```
+
+请求：
+
+```json
+{
+  "input": "5 6\n1 5 3 3 2\n",
+  "timeout_seconds": 2
+}
+```
+
+响应：
+
+```json
+{
+  "problem_id": "prob_x",
+  "input": "5 6\n1 5 3 3 2\n",
+  "expected": "2",
+  "actual": "2",
+  "passed": true,
+  "error": "",
+  "failure_stage": null
+}
+```
+
+`expected` 来自暴力解，`actual` 来自标准解。该接口用于复现验证报告里的失败输入。
 
 ## 导出题目包
 
@@ -117,7 +162,10 @@ Content-Type: application/json
 请求：
 
 ```json
-{"rounds": 100}
+{
+  "rounds": 100,
+  "timeout_seconds": 2
+}
 ```
 
 导出目录：

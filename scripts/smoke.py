@@ -107,12 +107,30 @@ def _run_problem_flow(base_url: str, use_llm: bool, topic: str, rounds: int) -> 
     _assert(review["passed"] is True, f"review passed for {problem_id}")
     _assert(review["score"] >= 80, f"review score >= 80 for {problem_id}")
 
-    validation = _post_json(f"{base_url}/api/problems/{problem_id}/validate", {"rounds": rounds}, timeout=60)
+    validation = _post_json(
+        f"{base_url}/api/problems/{problem_id}/validate",
+        {"rounds": rounds, "timeout_seconds": 1.5},
+        timeout=60,
+    )
     _assert(validation["sample_passed"] is True, f"samples passed for {problem_id}")
     _assert(validation["fuzz_passed"] is True, f"fuzz passed for {problem_id}")
     _assert(validation["failed_cases"] == [], f"no failed cases for {problem_id}")
+    _assert(validation["rounds"] == rounds, f"validation rounds recorded for {problem_id}")
+    _assert(validation["timeout_seconds"] == 1.5, f"validation timeout recorded for {problem_id}")
 
-    package = _post_json(f"{base_url}/api/problems/{problem_id}/package", {"rounds": rounds}, timeout=60)
+    rerun = _post_json(
+        f"{base_url}/api/problems/{problem_id}/rerun",
+        {"input": problem["samples"][0]["input"], "timeout_seconds": 1.5},
+        timeout=30,
+    )
+    _assert(rerun["passed"] is True, f"rerun passed for {problem_id}")
+    _assert(rerun["expected"] == rerun["actual"], f"rerun outputs match for {problem_id}")
+
+    package = _post_json(
+        f"{base_url}/api/problems/{problem_id}/package",
+        {"rounds": rounds, "timeout_seconds": 1.5},
+        timeout=60,
+    )
     _assert(package["problem_id"] == problem_id, "package endpoint returned selected problem")
     _assert(bool(package["package_dir"]), "package_dir is present")
     _assert(package["validation"]["fuzz_passed"] is True, "package validation passed")

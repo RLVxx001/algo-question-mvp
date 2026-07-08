@@ -34,6 +34,16 @@ def review_problem(problem: GeneratedProblem) -> ReviewReport:
     _compile_python(problem.generator_code, "generator_code", issues)
     checks.append("python code syntax checked")
 
+    _check_dangerous_python(problem.reference_solution, "reference_solution", issues)
+    _check_dangerous_python(problem.brute_force_solution, "brute_force_solution", issues)
+    _check_dangerous_python(problem.generator_code, "generator_code", issues)
+    checks.append("dangerous local-execution patterns checked")
+
+    _check_text_depth(problem, issues)
+    _check_constraint_shape(problem.constraints, issues)
+    _check_generator_seed(problem.generator_code, issues)
+    checks.append("quality heuristics checked")
+
     searchable = " ".join([problem.title, problem.statement, " ".join(problem.tags)]).lower()
     topic_tokens = [token for token in problem.topic.lower().replace("_", " ").split() if len(token) >= 3]
     if topic_tokens and not any(token in searchable for token in topic_tokens):
@@ -71,3 +81,47 @@ def _compile_python(source: str, field: str, issues: list[ReviewIssue]) -> None:
         compile(source, f"<{field}>", "exec")
     except SyntaxError as exc:
         issues.append(ReviewIssue("error", field, f"syntax error: {exc.msg} at line {exc.lineno}"))
+
+
+def _check_dangerous_python(source: str, field: str, issues: list[ReviewIssue]) -> None:
+    patterns = [
+        "import os",
+        "from os",
+        "import socket",
+        "from socket",
+        "import subprocess",
+        "from subprocess",
+        "import shutil",
+        "from shutil",
+        "import requests",
+        "from requests",
+        "import urllib",
+        "from urllib",
+        "open(",
+        "eval(",
+        "exec(",
+    ]
+    if any(pattern in source for pattern in patterns):
+        issues.append(ReviewIssue("error", field, "dangerous local-execution code is not allowed in this MVP"))
+
+
+def _check_text_depth(problem: GeneratedProblem, issues: list[ReviewIssue]) -> None:
+    if len(problem.statement.strip()) < 30:
+        issues.append(ReviewIssue("warn", "statement", "statement is very short and may be ambiguous"))
+    if len(problem.input_format.strip()) < 12:
+        issues.append(ReviewIssue("warn", "input_format", "input format is too short"))
+    if len(problem.output_format.strip()) < 12:
+        issues.append(ReviewIssue("warn", "output_format", "output format is too short"))
+    if len(problem.solution_explanation.strip()) < 30:
+        issues.append(ReviewIssue("warn", "solution_explanation", "solution explanation is very short"))
+
+
+def _check_constraint_shape(constraints: list[str], issues: list[ReviewIssue]) -> None:
+    joined = " ".join(constraints)
+    if constraints and not any(ch.isdigit() for ch in joined):
+        issues.append(ReviewIssue("warn", "constraints", "constraints do not include numeric bounds"))
+
+
+def _check_generator_seed(source: str, issues: list[ReviewIssue]) -> None:
+    if "sys.argv" not in source and "seed" not in source:
+        issues.append(ReviewIssue("warn", "generator_code", "generator does not appear to consume a seed argument"))
