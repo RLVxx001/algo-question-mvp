@@ -345,6 +345,71 @@ test("loadProblems logs list failures and preserves existing problems", async ()
   assert.deepEqual(logs, [{ title: "题目列表读取失败", message: "store unavailable", level: "warn" }]);
 });
 
+test("loadProblems clears selected problem when it disappears from refreshed list", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  let renderCount = 0;
+  const selected = {
+    id: "prob_deleted",
+    title: "Deleted",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+  const kept = {
+    id: "prob_kept",
+    title: "Kept",
+    topic: "graph",
+    difficulty: "medium",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["graph"],
+  };
+
+  context.fetch = async () => ({
+    ok: true,
+    json: async () => ({ list: [kept] }),
+  });
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  context.renderAll = () => {
+    renderCount += 1;
+  };
+  vm.runInContext(
+    `
+      state.problems = ${JSON.stringify([selected, kept])};
+      state.selected = ${JSON.stringify(selected)};
+      state.activeTab = "reports";
+      state.reports.prob_deleted = { review: { passed: true } };
+      state.workflows.prob_deleted = { status: "waiting_user" };
+      state.similarity.prob_deleted = { has_risk: false };
+      state.reruns["prob_deleted:0"] = { passed: true };
+    `,
+    context,
+  );
+
+  await context.loadProblems(false);
+
+  assert.deepEqual(plain(vm.runInContext("state.problems.map((problem) => problem.id)", context)), ["prob_kept"]);
+  assert.equal(vm.runInContext("state.selected", context), null);
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(vm.runInContext("'prob_deleted' in state.reports", context), false);
+  assert.equal(vm.runInContext("'prob_deleted' in state.workflows", context), false);
+  assert.equal(vm.runInContext("'prob_deleted' in state.similarity", context), false);
+  assert.equal(vm.runInContext("'prob_deleted:0' in state.reruns", context), false);
+  assert.equal(renderCount, 1);
+  assert.deepEqual(logs, [
+    {
+      title: "当前题目已移除",
+      message: "刷新后当前题目不在列表中，已清空详情。",
+      level: "warn",
+    },
+  ]);
+});
+
 test("refreshProblems disables refresh button and ignores duplicate refreshes", async () => {
   const context = loadAppContext();
   let resolveRefresh;

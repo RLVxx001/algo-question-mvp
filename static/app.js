@@ -162,12 +162,18 @@ async function loadProblems(selectLatest = false) {
   try {
     const data = await api("/api/problems");
     state.problems = data.list || [];
-    renderProblemList();
     if (selectLatest && state.problems.length) {
-      await selectProblem(state.problems[state.problems.length - 1].id);
-    } else if (state.selected) {
       renderProblemList();
+      await selectProblem(state.problems[state.problems.length - 1].id);
+      return;
     }
+    const selectedId = state.selected?.id;
+    if (selectedId && !state.problems.some((problem) => problem.id === selectedId)) {
+      forgetProblem(selectedId);
+      log("当前题目已移除", "刷新后当前题目不在列表中，已清空详情。", "warn");
+      return;
+    }
+    renderProblemList();
   } catch (err) {
     log("题目列表读取失败", err.message, "warn");
   }
