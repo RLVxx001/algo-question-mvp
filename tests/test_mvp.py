@@ -263,6 +263,33 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(problem_store.delete(problem.id))
             self.assertFalse(workflow_store.delete(problem.id))
 
+    def test_stores_reject_problem_ids_that_would_sanitize_to_existing_files(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.id = "probx"
+        workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))
+        review = review_problem(problem)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            problem_store = ProblemStore(root / "problems")
+            workflow_store = WorkflowStore(root / "workflows")
+            report_store = ReportStore(root / "reports")
+            problem_store.save(problem)
+            workflow_store.save(workflow)
+            report_store.save_review(problem.id, review.to_dict())
+
+            with self.assertRaises(KeyError):
+                problem_store.get("prob!x")
+            with self.assertRaises(KeyError):
+                workflow_store.get("prob!x")
+            self.assertFalse(problem_store.delete("prob!x"))
+            self.assertFalse(workflow_store.delete("prob!x"))
+            self.assertIsNone(report_store.get_review("prob!x"))
+            self.assertFalse(report_store.delete("prob!x"))
+            self.assertTrue(problem_store.path_for(problem.id).exists())
+            self.assertTrue(workflow_store.path_for(problem.id).exists())
+            self.assertTrue(report_store.dir_for(problem.id).exists())
+
     def test_server_delete_problem_removes_problem_workflow_and_package_artifacts(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         workflow = create_workflow(problem, ProblemRequest(topic="array", use_llm=False))

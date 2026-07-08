@@ -17,7 +17,10 @@ class ProblemStore:
         path.write_text(json.dumps(problem.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     def get(self, problem_id: str) -> GeneratedProblem:
-        path = self.path_for(problem_id)
+        try:
+            path = self.path_for(problem_id)
+        except ValueError as exc:
+            raise KeyError(problem_id) from exc
         if not path.exists():
             raise KeyError(problem_id)
         return GeneratedProblem.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -29,15 +32,17 @@ class ProblemStore:
         return problems
 
     def delete(self, problem_id: str) -> bool:
-        path = self.path_for(problem_id)
+        try:
+            path = self.path_for(problem_id)
+        except ValueError:
+            return False
         if not path.exists():
             return False
         path.unlink()
         return True
 
     def path_for(self, problem_id: str) -> Path:
-        safe_id = "".join(ch for ch in problem_id if ch.isalnum() or ch in "-_")
-        return self.root / f"{safe_id}.json"
+        return self.root / f"{_safe_id(problem_id)}.json"
 
 
 class WorkflowStore:
@@ -52,21 +57,26 @@ class WorkflowStore:
         )
 
     def get(self, problem_id: str) -> ProblemWorkflow:
-        path = self.path_for(problem_id)
+        try:
+            path = self.path_for(problem_id)
+        except ValueError as exc:
+            raise KeyError(problem_id) from exc
         if not path.exists():
             raise KeyError(problem_id)
         return ProblemWorkflow.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
     def delete(self, problem_id: str) -> bool:
-        path = self.path_for(problem_id)
+        try:
+            path = self.path_for(problem_id)
+        except ValueError:
+            return False
         if not path.exists():
             return False
         path.unlink()
         return True
 
     def path_for(self, problem_id: str) -> Path:
-        safe_id = "".join(ch for ch in problem_id if ch.isalnum() or ch in "-_")
-        return self.root / f"{safe_id}.json"
+        return self.root / f"{_safe_id(problem_id)}.json"
 
 
 class ReportStore:
@@ -87,15 +97,17 @@ class ReportStore:
         return self._read(problem_id, "validation_report.json")
 
     def delete(self, problem_id: str) -> bool:
-        report_dir = self.dir_for(problem_id)
+        try:
+            report_dir = self.dir_for(problem_id)
+        except ValueError:
+            return False
         if not report_dir.exists():
             return False
         shutil.rmtree(report_dir)
         return True
 
     def dir_for(self, problem_id: str) -> Path:
-        safe_id = "".join(ch for ch in problem_id if ch.isalnum() or ch in "-_")
-        return self.root / safe_id
+        return self.root / _safe_id(problem_id)
 
     def _write(self, problem_id: str, name: str, report: dict) -> None:
         report_dir = self.dir_for(problem_id)
@@ -103,7 +115,16 @@ class ReportStore:
         (report_dir / name).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _read(self, problem_id: str, name: str) -> dict | None:
-        path = self.dir_for(problem_id) / name
+        try:
+            path = self.dir_for(problem_id) / name
+        except ValueError:
+            return None
         if not path.exists():
             return None
         return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _safe_id(problem_id: str) -> str:
+    if not problem_id or any(not (ch.isalnum() or ch in "-_") for ch in problem_id):
+        raise ValueError("problem_id contains unsupported characters")
+    return problem_id
