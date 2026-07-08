@@ -254,6 +254,18 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json(default={})
             rounds = _clamp_rounds(body.get("rounds", DEFAULT_VALIDATION_ROUNDS))
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+            review = review_problem(problem)
+            if _review_blocks_execution(review):
+                review_report = review.to_dict()
+                REPORT_STORE.save_review(problem_id, review_report)
+                self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "validation blocked by dangerous generated code",
+                        "review": review_report,
+                    },
+                )
+                return
             report = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             payload = report.to_dict()
             REPORT_STORE.save_validation(problem_id, payload)
@@ -276,6 +288,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "input is required"})
                 return
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+            review = review_problem(problem)
+            if _review_blocks_execution(review):
+                review_report = review.to_dict()
+                REPORT_STORE.save_review(problem_id, review_report)
+                self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "rerun blocked by dangerous generated code",
+                        "review": review_report,
+                    },
+                )
+                return
             self._json(HTTPStatus.OK, rerun_case(problem, case_input, timeout_seconds).to_dict())
         except KeyError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "problem not found"})
@@ -333,11 +357,24 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json(default={})
             rounds = _clamp_rounds(body.get("rounds", DEFAULT_VALIDATION_ROUNDS))
             timeout_seconds = _clamp_timeout(body.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
-            validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
             review = review_problem(problem)
-            validation_report = validation.to_dict()
             review_report = review.to_dict()
             REPORT_STORE.save_review(problem.id, review_report)
+            if _review_blocks_execution(review):
+                _remove_package_artifacts(problem.id)
+                self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "problem_id": problem.id,
+                        "package_blocked": True,
+                        "error": "package blocked by dangerous generated code",
+                        "validation": None,
+                        "review": review_report,
+                    },
+                )
+                return
+            validation = validate_problem(problem, rounds=rounds, timeout_seconds=timeout_seconds)
+            validation_report = validation.to_dict()
             REPORT_STORE.save_validation(problem.id, validation_report)
             if not review.passed or not validation.sample_passed or not validation.fuzz_passed:
                 _remove_package_artifacts(problem.id)
@@ -540,6 +577,13 @@ def _reports_block_package(review: dict | None, validation: dict | None) -> bool
         validation.get("sample_passed") is False or validation.get("fuzz_passed") is False
     )
     return review_failed or validation_failed
+
+
+def _review_blocks_execution(review) -> bool:
+    return any(
+        issue.severity == "error" and "dangerous local-execution" in issue.message
+        for issue in review.issues
+    )
 
 
 def _package_download_url(problem_id: str) -> str:

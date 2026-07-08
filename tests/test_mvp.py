@@ -691,6 +691,46 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertFalse(payload["review"]["passed"])
             self.assertFalse((package_root / problem.id).exists())
 
+    def test_server_package_blocks_dangerous_code_before_validation(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "executed.txt"
+            problem.samples = [{"input": "", "output": "ok\n"}]
+            problem.reference_solution = f"open({str(marker)!r}, 'w').write('ran')\nprint('ok')\n"
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            package_root = root / "packages"
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": 3, "timeout_seconds": 1.0}
+
+            with (
+                patch("app.server.STORE", problem_store),
+                patch("app.server.REPORT_STORE", report_store),
+                patch("app.server.PACKAGE_ROOT", package_root),
+            ):
+                handler._package(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertTrue(payload["package_blocked"])
+            self.assertEqual(payload["error"], "package blocked by dangerous generated code")
+            self.assertIsNone(payload["validation"])
+            self.assertFalse(payload["review"]["passed"])
+            self.assertFalse(marker.exists())
+            self.assertIsNotNone(report_store.get_review(problem.id))
+            self.assertIsNone(report_store.get_validation(problem.id))
+            self.assertFalse((package_root / problem.id).exists())
+
     def test_workflow_package_step_rejects_failed_validation_without_exporting(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "print(0)\n"
@@ -1680,6 +1720,38 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             self.assertIn("sample reference failed", payload["failed_cases"][0]["reason"])
             self.assertIsNotNone(report_store.get_validation(problem.id))
 
+    def test_server_validate_blocks_dangerous_code_before_execution(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "executed.txt"
+            problem.samples = [{"input": "", "output": "ok\n"}]
+            problem.reference_solution = f"open({str(marker)!r}, 'w').write('ran')\nprint('ok')\n"
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {"rounds": 1, "timeout_seconds": 1}
+
+            with patch("app.server.STORE", problem_store), patch("app.server.REPORT_STORE", report_store):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "validation blocked by dangerous generated code")
+            self.assertFalse(payload["review"]["passed"])
+            self.assertFalse(marker.exists())
+            self.assertIsNotNone(report_store.get_review(problem.id))
+            self.assertIsNone(report_store.get_validation(problem.id))
+
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 
@@ -1855,6 +1927,40 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertEqual(payload["input"], "")
             self.assertTrue(payload["passed"])
+
+    def test_server_rerun_blocks_dangerous_code_before_execution(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "executed.txt"
+            problem.brute_force_solution = f"open({str(marker)!r}, 'w').write('ran')\nprint('ok')\n"
+            problem.reference_solution = "print('ok')\n"
+            problem_store = ProblemStore(root / "problems")
+            report_store = ReportStore(root / "reports")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler._read_json = lambda default=None: {
+                "input": "",
+                "timeout_seconds": 1,
+            }
+
+            with patch("app.server.STORE", problem_store), patch("app.server.REPORT_STORE", report_store):
+                handler._rerun(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "rerun blocked by dangerous generated code")
+            self.assertFalse(payload["review"]["passed"])
+            self.assertFalse(marker.exists())
+            self.assertIsNotNone(report_store.get_review(problem.id))
 
     def test_server_package_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
