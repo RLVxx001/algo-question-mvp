@@ -699,6 +699,19 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "statement_language must be zh or en"):
             _problem_request_from_body({"topic": "array", "statement_language": "fr"})
 
+    def test_problem_request_parser_clamps_generation_count(self) -> None:
+        from app.server import _problem_request_from_body
+
+        self.assertEqual(_problem_request_from_body({"topic": "array", "count": "3"}).count, 3)
+        self.assertEqual(_problem_request_from_body({"topic": "array", "count": 0}).count, 1)
+        self.assertEqual(_problem_request_from_body({"topic": "array", "count": 99}).count, 5)
+
+    def test_problem_request_parser_rejects_invalid_generation_count(self) -> None:
+        from app.server import _problem_request_from_body
+
+        with self.assertRaisesRegex(ValueError, "count must be an integer"):
+            _problem_request_from_body({"topic": "array", "count": "many"})
+
     def test_server_validate_rejects_invalid_rounds_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

@@ -551,9 +551,19 @@ def _problem_request_from_body(body: dict) -> ProblemRequest:
         difficulty=str(body.get("difficulty", "easy")),
         language=str(body.get("language", "python")),
         statement_language=_parse_statement_language(body.get("statement_language", body.get("natural_language", "zh"))),
-        count=int(body.get("count", DEFAULT_GENERATION_COUNT)),
+        count=_parse_count(body.get("count", DEFAULT_GENERATION_COUNT)),
         use_llm=_parse_bool(body.get("use_llm", True), "use_llm"),
     )
+
+
+def _parse_count(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError("count must be an integer")
+    try:
+        count = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("count must be an integer") from exc
+    return max(1, min(count, MAX_GENERATION_COUNT))
 
 
 def _parse_statement_language(value: object) -> str:

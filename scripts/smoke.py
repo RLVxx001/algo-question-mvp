@@ -58,6 +58,29 @@ def main() -> int:
     _assert_deleted(base_url, zh_problem["id"])
     results.append(f"default chinese ok: {zh_problem['id']}")
 
+    counted = _post_json(
+        f"{base_url}/api/problems/generate",
+        {"topic": "array", "difficulty": "easy", "count": "2", "use_llm": False},
+        timeout=30,
+    )["list"]
+    _assert(len(counted) == 2, "string count generates requested number of problems")
+    for problem in counted:
+        _assert_deleted(base_url, problem["id"])
+    results.append("string count ok")
+
+    try:
+        _post_json(
+            f"{base_url}/api/problems/generate",
+            {"topic": "array", "difficulty": "easy", "count": "many", "use_llm": False},
+            timeout=30,
+        )
+    except urllib.error.HTTPError as exc:
+        body = _http_error_json(exc)
+        _assert(exc.code == 400, "invalid generation count returns 400")
+        _assert(body["error"] == "count must be an integer", "invalid generation count has clear error")
+    else:
+        raise AssertionError("invalid generation count unexpectedly succeeded")
+
     string_false_problem = _post_json(
         f"{base_url}/api/problems/generate",
         {"topic": "array", "difficulty": "easy", "count": 1, "use_llm": "false"},
