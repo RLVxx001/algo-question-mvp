@@ -1257,6 +1257,79 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
             payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
             self.assertEqual(payload["error"], "JSON body must be an object")
 
+    def test_server_validate_rejects_invalid_content_length(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.headers = {"Content-Length": "many"}
+            handler.rfile = io.BytesIO(b"{}")
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", problem_store):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "invalid Content-Length")
+
+    def test_server_validate_rejects_invalid_utf8_json_body(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            body = b"\xff"
+            handler = object.__new__(Handler)
+            handler.headers = {"Content-Length": str(len(body))}
+            handler.rfile = io.BytesIO(body)
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", problem_store):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "invalid JSON body")
+
+    def test_server_validate_rejects_negative_content_length(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problem_store = ProblemStore(Path(tmp) / "problems")
+            problem_store.save(problem)
+
+            from app.server import Handler
+
+            handler = object.__new__(Handler)
+            handler.headers = {"Content-Length": "-1"}
+            handler.rfile = io.BytesIO(b"{}")
+            handler.wfile = Mock()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+
+            with patch("app.server.STORE", problem_store):
+                handler._validate(problem.id)
+
+            handler.send_response.assert_called_once_with(400)
+            payload = json.loads(handler.wfile.write.call_args.args[0].decode("utf-8"))
+            self.assertEqual(payload["error"], "invalid Content-Length")
+
     def test_server_rerun_rejects_invalid_timeout_as_bad_request(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
 

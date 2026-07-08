@@ -411,13 +411,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
     def _read_json(self, default: dict | None = None) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid Content-Length") from exc
+        if length < 0:
+            raise ValueError("invalid Content-Length")
         if length == 0:
             return default if default is not None else {}
-        raw = self.rfile.read(length).decode("utf-8")
         try:
+            raw = self.rfile.read(length).decode("utf-8")
             body = json.loads(raw)
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("invalid JSON body") from exc
         if not isinstance(body, dict):
             raise ValueError("JSON body must be an object")
