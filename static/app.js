@@ -1362,11 +1362,7 @@ async function deleteSelectedProblem() {
   setBusy(els.deleteButton, true, "删除中");
   try {
     const data = await api(`/api/problems/${problem.id}`, { method: "DELETE" });
-    delete state.reports[problem.id];
-    delete state.workflows[problem.id];
-    delete state.similarity[problem.id];
-    clearRerunsForProblem(problem.id);
-    state.selected = null;
+    forgetProblem(problem.id);
     await loadProblems(false);
     renderAll();
     log("题目已删除", `${data.problem_id} / package=${data.removed_package}`, "ok");

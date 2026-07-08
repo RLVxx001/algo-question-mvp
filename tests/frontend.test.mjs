@@ -745,6 +745,82 @@ test("forgetProblem invalidates pending selection responses for the removed prob
   assert.deepEqual(plain(vm.runInContext("state.problems", context)), []);
 });
 
+test("deleteSelectedProblem removes deleted problem locally when refresh fails", async () => {
+  const context = loadAppContext();
+  const logs = [];
+  const requestedPaths = [];
+  const deleted = {
+    id: "prob_deleted",
+    title: "Deleted",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+  const kept = {
+    id: "prob_kept",
+    title: "Kept",
+    topic: "graph",
+    difficulty: "medium",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["graph"],
+  };
+
+  context.window.confirm = () => true;
+  context.fetch = async (path, options = {}) => {
+    requestedPaths.push({ path, method: options.method || "GET" });
+    if (path === "/api/problems/prob_deleted" && options.method === "DELETE") {
+      return {
+        ok: true,
+        json: async () => ({ problem_id: "prob_deleted", removed_package: true }),
+      };
+    }
+    if (path === "/api/problems") {
+      return {
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "store unavailable" }),
+      };
+    }
+    throw new Error(`unexpected request: ${path}`);
+  };
+  context.log = (title, message, level) => {
+    logs.push({ title, message, level });
+  };
+  vm.runInContext(
+    `
+      state.problems = ${JSON.stringify([deleted, kept])};
+      state.selected = ${JSON.stringify(deleted)};
+      state.activeTab = "reports";
+      state.reports.prob_deleted = { review: { passed: true } };
+      state.workflows.prob_deleted = { status: "waiting_user" };
+      state.similarity.prob_deleted = { has_risk: false };
+      state.reruns["prob_deleted:0"] = { passed: true };
+    `,
+    context,
+  );
+
+  await context.deleteSelectedProblem();
+
+  assert.deepEqual(requestedPaths, [
+    { path: "/api/problems/prob_deleted", method: "DELETE" },
+    { path: "/api/problems", method: "GET" },
+  ]);
+  assert.deepEqual(plain(vm.runInContext("state.problems.map((problem) => problem.id)", context)), ["prob_kept"]);
+  assert.equal(vm.runInContext("state.selected", context), null);
+  assert.equal(vm.runInContext("state.activeTab", context), "statement");
+  assert.equal(vm.runInContext("'prob_deleted' in state.reports", context), false);
+  assert.equal(vm.runInContext("'prob_deleted' in state.workflows", context), false);
+  assert.equal(vm.runInContext("'prob_deleted' in state.similarity", context), false);
+  assert.equal(vm.runInContext("'prob_deleted:0' in state.reruns", context), false);
+  assert.deepEqual(logs, [
+    { title: "题目列表读取失败", message: "store unavailable", level: "warn" },
+    { title: "题目已删除", message: "prob_deleted / package=true", level: "ok" },
+  ]);
+});
+
 test("runReview ignores duplicate clicks while request is in flight", async () => {
   const context = loadAppContext();
   let resolveReview;
