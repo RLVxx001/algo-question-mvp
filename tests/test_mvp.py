@@ -1379,6 +1379,16 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertIn("sample reference failed", report.failed_cases[0].reason)
         self.assertIn("RuntimeError", report.failed_cases[0].reason)
 
+    def test_validation_report_truncates_long_runtime_stderr(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "import sys\nsys.stderr.write('x' * 6000)\nraise SystemExit(1)\n"
+
+        report = validate_problem(problem, rounds=0, timeout_seconds=1.0)
+
+        reason = report.failed_cases[0].reason
+        self.assertLessEqual(len(reason), 4300)
+        self.assertIn("... truncated ...", reason)
+
     def test_rerun_case_reports_compare_failure(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "print(0)\n"

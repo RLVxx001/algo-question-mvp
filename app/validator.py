@@ -205,12 +205,16 @@ def _run(cmd: list[str], stdin: str, timeout_seconds: float, label: str) -> str:
     except subprocess.TimeoutExpired as exc:
         raise ValidationError(f"{label} timed out after {timeout_seconds:g}s") from exc
     if completed.returncode != 0:
-        stderr = completed.stderr.strip()
+        stderr = _truncate_text(completed.stderr.strip())
         raise ValidationError(f"{label} failed: {stderr}" if stderr else f"{label} failed")
     return completed.stdout
 
 
+def _truncate_text(value: str, limit: int = 4000) -> str:
+    if len(value) <= limit:
+        return value
+    return value[:limit] + "\n... truncated ..."
+
+
 def _truncate_case_input(case_input: str, limit: int = 4000) -> str:
-    if len(case_input) <= limit:
-        return case_input
-    return case_input[:limit] + "\n... truncated ..."
+    return _truncate_text(case_input, limit)
