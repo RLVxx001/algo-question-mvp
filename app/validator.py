@@ -162,16 +162,17 @@ def rerun_case(problem: GeneratedProblem, case_input: str, timeout_seconds: floa
         brute_path = root / "brute.py"
         ref_path.write_text(problem.reference_solution, encoding="utf-8")
         brute_path.write_text(problem.brute_force_solution, encoding="utf-8")
+        report_input = _truncate_case_input(case_input)
         try:
             expected = _run_python(brute_path, case_input, timeout_seconds).strip()
         except ValidationError as exc:
-            return RerunReport(problem.id, case_input, "", "", False, str(exc), "brute_force")
+            return RerunReport(problem.id, report_input, "", "", False, str(exc), "brute_force")
         try:
             actual = _run_python(ref_path, case_input, timeout_seconds).strip()
         except ValidationError as exc:
             return RerunReport(
                 problem.id,
-                case_input,
+                report_input,
                 _truncate_case_output(expected),
                 "",
                 False,
@@ -182,7 +183,7 @@ def rerun_case(problem: GeneratedProblem, case_input: str, timeout_seconds: floa
     passed = expected == actual
     return RerunReport(
         problem_id=problem.id,
-        input=case_input,
+        input=report_input,
         expected=_truncate_case_output(expected),
         actual=_truncate_case_output(actual),
         passed=passed,

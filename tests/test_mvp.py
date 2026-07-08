@@ -1441,6 +1441,18 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertIn("... truncated ...", result.expected)
         self.assertIn("... truncated ...", result.actual)
 
+    def test_rerun_case_truncates_long_response_input(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.brute_force_solution = "print('expected')\n"
+        problem.reference_solution = "print('actual')\n"
+
+        result = rerun_case(problem, "i" * 6000, timeout_seconds=1.0)
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_stage, "compare")
+        self.assertLessEqual(len(result.input), 4300)
+        self.assertIn("... truncated ...", result.input)
+
     def test_review_flags_dangerous_generated_code(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.reference_solution = "import subprocess\nprint('x')\n"
