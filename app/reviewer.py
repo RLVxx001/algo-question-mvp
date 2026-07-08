@@ -92,7 +92,7 @@ def _check_dangerous_python(source: str, field: str, issues: list[ReviewIssue]) 
         tree = ast.parse(source)
     except SyntaxError:
         return
-    dangerous_modules = {"os", "socket", "subprocess", "shutil", "requests", "urllib"}
+    dangerous_modules = {"os", "socket", "subprocess", "shutil", "requests", "urllib", "importlib"}
     dangerous_calls = {"open", "eval", "exec", "__import__"}
     if any(_has_dangerous_node(node, dangerous_modules, dangerous_calls) for node in ast.walk(tree)):
         issues.append(ReviewIssue("error", field, "dangerous local-execution code is not allowed in this MVP"))
@@ -105,6 +105,8 @@ def _has_dangerous_node(node: ast.AST, modules: set[str], calls: set[str]) -> bo
         return _module_root(node.module or "") in modules
     if isinstance(node, ast.Call):
         if isinstance(node.func, ast.Name):
+            if node.func.id == "getattr" and len(node.args) >= 2:
+                return _string_literal(node.args[1]) in calls
             return node.func.id in calls
         if isinstance(node.func, ast.Attribute):
             return node.func.attr in calls
@@ -113,6 +115,10 @@ def _has_dangerous_node(node: ast.AST, modules: set[str], calls: set[str]) -> bo
 
 def _module_root(name: str) -> str:
     return name.split(".", 1)[0]
+
+
+def _string_literal(node: ast.AST) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
 
 
 def _check_text_depth(problem: GeneratedProblem, issues: list[ReviewIssue]) -> None:

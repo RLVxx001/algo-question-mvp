@@ -1484,6 +1484,22 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertIn("generator_code", dangerous_fields)
         self.assertFalse(review.passed)
 
+    def test_review_flags_dynamic_dangerous_generated_code(self) -> None:
+        problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
+        problem.reference_solution = "import importlib\nimportlib.import_module('subprocess')\nprint('x')\n"
+        problem.brute_force_solution = "getattr(__builtins__, 'open')('out.txt', 'w')\nprint('x')\n"
+
+        review = review_problem(problem)
+
+        dangerous_fields = {
+            issue.field
+            for issue in review.issues
+            if issue.severity == "error" and "dangerous" in issue.message
+        }
+        self.assertIn("reference_solution", dangerous_fields)
+        self.assertIn("brute_force_solution", dangerous_fields)
+        self.assertFalse(review.passed)
+
     def test_review_warns_about_weak_constraints_and_missing_seed(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))
         problem.constraints = ["values are valid"]
