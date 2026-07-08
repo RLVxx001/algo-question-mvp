@@ -373,6 +373,36 @@ test("continueWorkflow captures edit patch before rerendering", async () => {
   assert.equal(capturedPayload.patch.title, "Edited title");
 });
 
+test("continueWorkflow restores workflow state when request fails", async () => {
+  const context = loadAppContext();
+  const problemId = "prob_a";
+  context.fetch = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: "step cannot continue" }),
+  });
+  vm.runInContext(
+    `
+      state.selected = { id: ${JSON.stringify(problemId)}, title: "Problem" };
+      state.activeTab = "workflow";
+      state.workflows[${JSON.stringify(problemId)}] = {
+        problem_id: ${JSON.stringify(problemId)},
+        status: "waiting_user",
+        current_step: "statement",
+        steps: [{ key: "statement", status: "waiting_user", summary: "待确认" }]
+      };
+    `,
+    context,
+  );
+
+  await context.continueWorkflow(false);
+
+  const workflow = vm.runInContext(`state.workflows[${JSON.stringify(problemId)}]`, context);
+  assert.equal(workflow.status, "waiting_user");
+  assert.equal(workflow.steps[0].status, "waiting_user");
+  assert.equal(workflow.steps[0].summary, "待确认");
+});
+
 test("topic input event clears generation validation state", () => {
   const context = loadAppContext();
 

@@ -1041,6 +1041,7 @@ async function saveEdit(event) {
 async function continueWorkflow(includePatch) {
   const id = currentProblemId();
   if (!id) return;
+  const previousWorkflow = cloneWorkflow(state.workflows[id]);
   const payload = { confirm_current: true };
   const editForm = document.getElementById("editForm");
   if (includePatch && editForm) {
@@ -1069,6 +1070,10 @@ async function continueWorkflow(includePatch) {
     renderAll();
     log("流程继续", workflowEventSummary(data.result), "ok");
   } catch (err) {
+    if (previousWorkflow) {
+      state.workflows[id] = previousWorkflow;
+      renderAll();
+    }
     log("流程失败", err.message, "bad");
   }
 }
@@ -1082,6 +1087,10 @@ function markCurrentWorkflowStepRunning(id) {
     current.summary = "进行中";
   }
   workflow.status = "running";
+}
+
+function cloneWorkflow(workflow) {
+  return workflow ? JSON.parse(JSON.stringify(workflow)) : null;
 }
 
 async function runReview() {
