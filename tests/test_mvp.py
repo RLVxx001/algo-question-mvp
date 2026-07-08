@@ -1366,6 +1366,7 @@ class AlgorithmQuestionMVPTest(unittest.TestCase):
         self.assertFalse(report.fuzz_passed)
         self.assertEqual(report.first_failed_seed, 0)
         self.assertEqual(report.failure_stage, "compare")
+        self.assertEqual(report.total_cases, 1)
 
     def test_validation_report_records_sample_reference_runtime_failure(self) -> None:
         problem = generate_problem(ProblemRequest(topic="array", use_llm=False))

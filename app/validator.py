@@ -62,7 +62,9 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
 
         sample_passed = not failed
         fuzz_passed = True
+        fuzz_cases_run = 0
         for seed in range(rounds):
+            fuzz_cases_run += 1
             try:
                 case_input = _run_generator(gen_path, seed, timeout_seconds)
             except ValidationError as exc:
@@ -141,7 +143,7 @@ def validate_problem(problem: GeneratedProblem, rounds: int = 100, timeout_secon
         problem_id=problem.id,
         sample_passed=sample_passed,
         fuzz_passed=fuzz_passed,
-        total_cases=len(problem.samples) + rounds,
+        total_cases=len(problem.samples) + fuzz_cases_run,
         failed_cases=failed,
         notes=notes,
         rounds=rounds,
