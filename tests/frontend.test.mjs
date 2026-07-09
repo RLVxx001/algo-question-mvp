@@ -692,6 +692,73 @@ test("selectProblem clears stale problem when reports endpoint returns not found
   ]);
 });
 
+test("selectProblem syncs loaded problem details into the list summary", async () => {
+  const context = loadAppContext();
+  const staleSummary = {
+    id: "prob_a",
+    title: "Old title",
+    topic: "array",
+    difficulty: "easy",
+    source: "mock",
+    statement_language: "zh",
+    tags: ["array"],
+  };
+  const loadedProblem = {
+    ...staleSummary,
+    title: "Fresh title",
+    topic: "graph",
+    difficulty: "medium",
+    source: "llm",
+    statement_language: "en",
+    tags: ["graph"],
+  };
+
+  context.fetch = async (path) => {
+    if (path === "/api/problems/prob_a") {
+      return {
+        ok: true,
+        json: async () => loadedProblem,
+      };
+    }
+    if (path === "/api/problems/prob_a/reports") {
+      return {
+        ok: true,
+        json: async () => ({ review: null, validation: null, package: null }),
+      };
+    }
+    if (path === "/api/problems/prob_a/similar") {
+      return {
+        ok: true,
+        json: async () => ({ candidates: [] }),
+      };
+    }
+    if (path === "/api/problems/prob_a/workflow") {
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "workflow not found" }),
+      };
+    }
+    throw new Error(`unexpected request: ${path}`);
+  };
+  context.renderAll = () => {};
+  vm.runInContext(`state.problems = ${JSON.stringify([staleSummary])};`, context);
+
+  await context.selectProblem("prob_a");
+
+  assert.equal(vm.runInContext("state.selected.title", context), "Fresh title");
+  assert.deepEqual(plain(vm.runInContext("state.problems[0]", context)), {
+    id: "prob_a",
+    title: "Fresh title",
+    topic: "graph",
+    difficulty: "medium",
+    tags: ["graph"],
+    created_at: "",
+    source: "llm",
+    statement_language: "en",
+  });
+});
+
 test("selectProblem ignores stale responses from earlier selections", async () => {
   const context = loadAppContext();
   let resolveSlow;

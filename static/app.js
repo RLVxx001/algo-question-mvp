@@ -225,6 +225,7 @@ async function selectProblem(id) {
     const problem = await api(`/api/problems/${id}`);
     if (!isCurrent()) return;
     state.selected = problem;
+    syncProblemSummary(problem);
     state.activeTab = "statement";
     state.reports[id] = state.reports[id] || {};
     if (!(await loadStoredReports(id))) {
