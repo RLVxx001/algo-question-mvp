@@ -40,29 +40,33 @@
             </div>
           </div>
 
-          <label class="field">
-            <span>数量</span>
-            <input id="countInput" name="count" type="number" min="1" max="5" value="1">
-          </label>
-
-          <label class="toggle">
-            <input id="useLlmInput" name="use_llm" type="checkbox" checked>
-            <span>使用模型</span>
-          </label>
-
-          <label class="toggle">
-            <input id="workflowInput" name="workflow_enabled" type="checkbox" checked>
-            <span>分步流程</span>
-          </label>
-
-          <div class="field workflow-config">
-            <span>需要人工确认的步骤</span>
-            <label class="mini-check"><input type="checkbox" name="manual_steps" value="idea"><span>创意方向</span></label>
-            <label class="mini-check"><input type="checkbox" name="manual_steps" value="statement" checked><span>题面</span></label>
-            <label class="mini-check"><input type="checkbox" name="manual_steps" value="constraints"><span>约束与样例</span></label>
-            <label class="mini-check"><input type="checkbox" name="manual_steps" value="solutions"><span>解法</span></label>
-            <label class="mini-check"><input type="checkbox" name="manual_steps" value="generator"><span>数据生成器</span></label>
+          <div class="generation-options">
+            <label class="field count-field">
+              <span>数量</span>
+              <input id="countInput" name="count" type="number" min="1" max="5" value="1">
+            </label>
+            <div class="toggle-stack">
+              <label class="toggle">
+                <input id="useLlmInput" name="use_llm" type="checkbox" checked>
+                <span>使用模型</span>
+              </label>
+              <label class="toggle">
+                <input id="workflowInput" name="workflow_enabled" type="checkbox" checked>
+                <span>分步流程</span>
+              </label>
+            </div>
           </div>
+
+          <details class="workflow-config">
+            <summary>人工确认步骤</summary>
+            <div class="workflow-step-options">
+              <label class="mini-check"><input type="checkbox" name="manual_steps" value="idea"><span>创意方向</span></label>
+              <label class="mini-check"><input type="checkbox" name="manual_steps" value="statement" checked><span>题面</span></label>
+              <label class="mini-check"><input type="checkbox" name="manual_steps" value="constraints"><span>约束与样例</span></label>
+              <label class="mini-check"><input type="checkbox" name="manual_steps" value="solutions"><span>解法</span></label>
+              <label class="mini-check"><input type="checkbox" name="manual_steps" value="generator"><span>数据生成器</span></label>
+            </div>
+          </details>
 
           <button class="primary-button" type="submit">
             <span class="button-icon">+</span>
@@ -70,49 +74,51 @@
           </button>
         </form>
 
-        <section class="panel runtime-panel">
-          <div class="panel-heading">
-            <h2>运行状态</h2>
-            <span id="runtimeModeText" class="status-pill">读取中</span>
-          </div>
-          <div class="runtime-grid">
-            <div>
-              <span>模型</span>
-              <strong id="runtimeModelText">-</strong>
+        <div class="sidebar-secondary">
+          <details class="panel runtime-panel">
+            <summary class="panel-heading">
+              <span class="panel-title">运行状态</span>
+              <span id="runtimeModeText" class="status-pill">读取中</span>
+            </summary>
+            <div class="runtime-grid">
+              <div>
+                <span>模型</span>
+                <strong id="runtimeModelText">-</strong>
+              </div>
+              <div>
+                <span>接口</span>
+                <strong id="runtimeEndpointText">-</strong>
+              </div>
+              <div>
+                <span>限制</span>
+                <strong id="runtimeLimitsText">-</strong>
+              </div>
             </div>
-            <div>
-              <span>接口</span>
-              <strong id="runtimeEndpointText">-</strong>
-            </div>
-            <div>
-              <span>限制</span>
-              <strong id="runtimeLimitsText">-</strong>
-            </div>
-          </div>
-        </section>
+          </details>
 
-        <section class="panel list-panel">
-          <div class="panel-heading">
-            <h2>题目列表</h2>
-            <button id="refreshButton" class="icon-button" type="button" title="刷新">R</button>
-          </div>
-          <div class="filter-row">
-            <input id="problemSearchInput" class="filter-input" aria-label="搜索题目、知识点、标签" placeholder="搜索题目、知识点、标签">
-            <select id="sourceFilter" class="filter-select" aria-label="来源过滤">
-              <option value="all">全部来源</option>
-              <option value="llm">LLM</option>
-              <option value="mock">模板</option>
-              <option value="mock-after-llm-failure">模型失败降级</option>
-              <option value="mock-after-language-mismatch">语言不符降级</option>
-            </select>
-            <select id="languageFilter" class="filter-select" aria-label="语言过滤">
-              <option value="all">全部语言</option>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div id="problemList" class="problem-list"></div>
-        </section>
+          <section class="panel list-panel">
+            <div class="panel-heading">
+              <h2>题目列表</h2>
+              <button id="refreshButton" class="icon-button" type="button" title="刷新题目列表" aria-label="刷新题目列表">&#8635;</button>
+            </div>
+            <div class="filter-row">
+              <input id="problemSearchInput" class="filter-input" aria-label="搜索题目、知识点、标签" placeholder="搜索题目、知识点、标签">
+              <select id="sourceFilter" class="filter-select" aria-label="来源过滤">
+                <option value="all">全部来源</option>
+                <option value="llm">LLM</option>
+                <option value="mock">模板</option>
+                <option value="mock-after-llm-failure">模型失败降级</option>
+                <option value="mock-after-language-mismatch">语言不符降级</option>
+              </select>
+              <select id="languageFilter" class="filter-select" aria-label="语言过滤">
+                <option value="all">全部语言</option>
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div id="problemList" class="problem-list"></div>
+          </section>
+        </div>
       </aside>
 
       <main class="workspace">
@@ -122,30 +128,34 @@
             <h2 id="currentTitle">等待选择题目</h2>
           </div>
           <div class="toolbar">
-            <label class="compact-field">
-              <span>轮数</span>
-              <input id="roundsInput" type="number" min="1" max="1000" value="100">
-            </label>
-            <label class="compact-field">
-              <span>超时</span>
-              <input id="timeoutInput" type="number" min="0.2" max="10" step="0.1" value="2">
-            </label>
-            <button id="reviewButton" class="secondary-button" type="button" disabled>
-              <span class="button-icon">?</span>
-              <span>审查</span>
-            </button>
-            <button id="validateButton" class="secondary-button" type="button" disabled>
-              <span class="button-icon">V</span>
-              <span>验证</span>
-            </button>
-            <button id="packageButton" class="secondary-button" type="button" disabled>
-              <span class="button-icon">P</span>
-              <span>导出</span>
-            </button>
-            <button id="deleteButton" class="secondary-button danger-button" type="button" disabled>
-              <span class="button-icon">X</span>
-              <span>删除</span>
-            </button>
+            <div class="validation-controls">
+              <label class="compact-field">
+                <span>轮数</span>
+                <input id="roundsInput" type="number" min="1" max="1000" value="100">
+              </label>
+              <label class="compact-field">
+                <span>超时</span>
+                <input id="timeoutInput" type="number" min="0.2" max="10" step="0.1" value="2">
+              </label>
+            </div>
+            <div class="action-controls">
+              <button id="reviewButton" class="secondary-button" type="button" disabled>
+                <span class="button-icon" aria-hidden="true">&#128269;</span>
+                <span>审查</span>
+              </button>
+              <button id="validateButton" class="secondary-button" type="button" disabled>
+                <span class="button-icon" aria-hidden="true">&#10003;</span>
+                <span>验证</span>
+              </button>
+              <button id="packageButton" class="secondary-button" type="button" disabled>
+                <span class="button-icon" aria-hidden="true">&#8681;</span>
+                <span>导出</span>
+              </button>
+              <button id="deleteButton" class="secondary-button danger-button" type="button" disabled>
+                <span class="button-icon" aria-hidden="true">&#215;</span>
+                <span>删除</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -195,7 +205,7 @@
           <aside class="activity-panel">
             <div class="panel-heading">
               <h2>运行记录</h2>
-              <button id="clearLogButton" class="icon-button" type="button" title="清空">C</button>
+              <button id="clearLogButton" class="icon-button" type="button" title="清空运行记录" aria-label="清空运行记录">&#215;</button>
             </div>
             <div id="activityLog" class="activity-log"></div>
           </aside>
