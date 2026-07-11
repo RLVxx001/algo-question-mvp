@@ -15,12 +15,16 @@ const TRUNCATED_REPORT_MARKER = "... truncated ...";
 
 const els = {
   healthText: document.getElementById("healthText"),
+  generateDialog: document.getElementById("generateDialog"),
+  newProblemButton: document.getElementById("newProblemButton"),
+  closeGenerateButton: document.getElementById("closeGenerateButton"),
   generateForm: document.getElementById("generateForm"),
   topicInput: document.getElementById("topicInput"),
   countInput: document.getElementById("countInput"),
   useLlmInput: document.getElementById("useLlmInput"),
   workflowInput: document.getElementById("workflowInput"),
   problemList: document.getElementById("problemList"),
+  problemCount: document.getElementById("problemCount"),
   refreshButton: document.getElementById("refreshButton"),
   currentTitle: document.getElementById("currentTitle"),
   reviewButton: document.getElementById("reviewButton"),
@@ -365,11 +369,12 @@ async function loadSimilarity(id) {
 }
 
 function renderProblemList() {
+  const problems = filteredProblems();
+  els.problemCount.textContent = String(problems.length);
   if (!state.problems.length) {
     els.problemList.innerHTML = `<div class="empty-state"><p>暂无题目</p></div>`;
     return;
   }
-  const problems = filteredProblems();
   const selectedHidden = selectedProblemHiddenByFilters(problems);
   const hiddenNotice = selectedHidden
     ? `<div class="filter-notice">当前详情已被筛选隐藏，清空筛选后可在列表中看到。</div>`
@@ -499,7 +504,7 @@ function renderDetail() {
   const problem = state.selected;
   if (!problem) {
     els.detailContent.className = "detail-content empty-state";
-    els.detailContent.innerHTML = `<h3>暂无题目</h3><p>从左侧生成或选择一道题。</p>`;
+    els.detailContent.innerHTML = `<h3>暂无题目</h3><p>从题目库选择或新建一道题。</p>`;
     return;
   }
   els.detailContent.className = "detail-content";
@@ -1142,6 +1147,25 @@ function markValidationInvalid(error = null) {
   }
 }
 
+function openGenerateDialog() {
+  if (!els.generateDialog || els.generateDialog.open) return;
+  if (typeof els.generateDialog.showModal === "function") {
+    els.generateDialog.showModal();
+  } else {
+    els.generateDialog.open = true;
+  }
+  els.topicInput?.focus?.();
+}
+
+function closeGenerateDialog() {
+  if (!els.generateDialog?.open) return;
+  if (typeof els.generateDialog.close === "function") {
+    els.generateDialog.close();
+  } else {
+    els.generateDialog.open = false;
+  }
+}
+
 async function handleGenerate(event) {
   event.preventDefault();
   const form = new FormData(els.generateForm);
@@ -1167,6 +1191,7 @@ async function handleGenerate(event) {
         method: "POST",
         body: JSON.stringify({ ...payload, manual_steps: manualSteps }),
       });
+      closeGenerateDialog();
       state.workflows[data.problem.id] = data.workflow;
       log("流程已启动", workflowEventSummary(data.result), "ok");
       await loadProblems(false);
@@ -1178,6 +1203,7 @@ async function handleGenerate(event) {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      closeGenerateDialog();
       log("生成完成", `${data.list.length} 道题已创建`, "ok");
       await loadProblems(false);
       if (data.list[0]) {
@@ -1479,6 +1505,11 @@ function clearRerunsForProblem(problemId) {
 }
 
 function bindEvents() {
+  els.newProblemButton.addEventListener("click", openGenerateDialog);
+  els.closeGenerateButton.addEventListener("click", closeGenerateDialog);
+  els.generateDialog.addEventListener("click", (event) => {
+    if (event.target === els.generateDialog) closeGenerateDialog();
+  });
   els.generateForm.addEventListener("submit", handleGenerate);
   els.topicInput.addEventListener("input", () => markGenerationInvalid());
   els.countInput.addEventListener("input", () => markGenerationInvalid());

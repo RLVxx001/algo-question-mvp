@@ -314,6 +314,42 @@ test("operation lock blocks duplicate operations until released", () => {
   assert.equal(context.beginOperation("review:prob_a"), true);
 });
 
+test("generation dialog opens and closes", () => {
+  const context = loadAppContext();
+  const dialog = context.__elements.generateDialog;
+  dialog.open = false;
+  dialog.showModal = function showModal() {
+    this.open = true;
+  };
+  dialog.close = function close() {
+    this.open = false;
+  };
+
+  context.openGenerateDialog();
+  assert.equal(dialog.open, true);
+
+  context.closeGenerateDialog();
+  assert.equal(dialog.open, false);
+});
+
+test("problem library count follows active filters", () => {
+  const context = loadAppContext();
+  vm.runInContext(
+    `state.problems = [
+      { id: "prob_a", title: "Array Pair", topic: "array", difficulty: "easy", source: "mock", statement_language: "zh", tags: ["array"] },
+      { id: "prob_b", title: "Graph Path", topic: "graph", difficulty: "medium", source: "llm", statement_language: "en", tags: ["graph"] }
+    ];`,
+    context,
+  );
+
+  context.renderProblemList();
+  assert.equal(context.__elements.problemCount.textContent, "2");
+
+  context.__elements.problemSearchInput.value = "graph";
+  context.renderProblemList();
+  assert.equal(context.__elements.problemCount.textContent, "1");
+});
+
 test("loadProblems logs list failures and preserves existing problems", async () => {
   const context = loadAppContext();
   const existing = [

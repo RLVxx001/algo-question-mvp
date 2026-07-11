@@ -8,17 +8,188 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar">
+      <header class="app-header">
         <div class="brand">
-          <div class="brand-mark">AI</div>
-          <div>
+          <div class="brand-mark" aria-hidden="true">AQ</div>
+          <div class="brand-copy">
             <h1>算法出题工作台</h1>
             <p id="healthText">连接中</p>
           </div>
         </div>
 
-        <form id="generateForm" class="panel form-panel">
-          <label class="field">
+        <div class="header-actions">
+          <details class="runtime-menu">
+            <summary title="查看运行环境" aria-label="查看运行环境">
+              <span class="runtime-summary-label">运行环境</span>
+              <span id="runtimeModeText" class="status-pill">读取中</span>
+            </summary>
+            <div class="runtime-popover">
+              <div class="runtime-popover-heading">
+                <strong>运行环境</strong>
+                <span>当前服务配置</span>
+              </div>
+              <div class="runtime-grid">
+                <div>
+                  <span>模型</span>
+                  <strong id="runtimeModelText">-</strong>
+                </div>
+                <div>
+                  <span>接口</span>
+                  <strong id="runtimeEndpointText">-</strong>
+                </div>
+                <div>
+                  <span>限制</span>
+                  <strong id="runtimeLimitsText">-</strong>
+                </div>
+              </div>
+            </div>
+          </details>
+          <button id="newProblemButton" class="primary-button header-create" type="button">
+            <span class="button-icon" aria-hidden="true">+</span>
+            <span>新建题目</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="app-body">
+        <aside class="library-sidebar" aria-labelledby="libraryTitle">
+          <section class="library-panel">
+            <div class="library-heading">
+              <div>
+                <p class="eyebrow">Library</p>
+                <div class="library-title-row">
+                  <h2 id="libraryTitle">题目库</h2>
+                  <span id="problemCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <button id="refreshButton" class="icon-button" type="button" title="刷新题目列表" aria-label="刷新题目列表">&#8635;</button>
+            </div>
+            <div class="filter-row">
+              <input id="problemSearchInput" class="filter-input" aria-label="搜索题目、知识点、标签" placeholder="搜索题目、知识点、标签">
+              <div class="filter-selects">
+                <select id="sourceFilter" class="filter-select" aria-label="来源过滤">
+                  <option value="all">全部来源</option>
+                  <option value="llm">LLM</option>
+                  <option value="mock">模板</option>
+                  <option value="mock-after-llm-failure">模型失败降级</option>
+                  <option value="mock-after-language-mismatch">语言不符降级</option>
+                </select>
+                <select id="languageFilter" class="filter-select" aria-label="语言过滤">
+                  <option value="all">全部语言</option>
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+            </div>
+            <div id="problemList" class="problem-list"></div>
+          </section>
+        </aside>
+
+        <main class="workspace">
+          <header class="topbar">
+            <div class="current-problem-heading">
+              <p class="eyebrow">Problem package</p>
+              <h2 id="currentTitle">等待选择题目</h2>
+            </div>
+            <div class="toolbar">
+              <div class="validation-controls" aria-label="验证参数">
+                <label class="compact-field">
+                  <span>轮数</span>
+                  <input id="roundsInput" type="number" min="1" max="1000" value="100">
+                </label>
+                <label class="compact-field">
+                  <span>超时</span>
+                  <input id="timeoutInput" type="number" min="0.2" max="10" step="0.1" value="2">
+                </label>
+              </div>
+              <div class="action-controls">
+                <button id="reviewButton" class="secondary-button" type="button" disabled>
+                  <span class="button-icon" aria-hidden="true">&#128269;</span>
+                  <span>审查</span>
+                </button>
+                <button id="validateButton" class="secondary-button" type="button" disabled>
+                  <span class="button-icon" aria-hidden="true">&#10003;</span>
+                  <span>验证</span>
+                </button>
+                <button id="packageButton" class="secondary-button" type="button" disabled>
+                  <span class="button-icon" aria-hidden="true">&#8681;</span>
+                  <span>导出</span>
+                </button>
+                <button id="deleteButton" class="secondary-button danger-button" type="button" disabled>
+                  <span class="button-icon" aria-hidden="true">&#215;</span>
+                  <span>删除</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <section class="status-grid" aria-label="题目状态">
+            <div class="metric">
+              <span>来源</span>
+              <strong id="sourceMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>语言</span>
+              <strong id="languageMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>模型</span>
+              <strong id="llmMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>审查</span>
+              <strong id="reviewMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>对拍</span>
+              <strong id="validateMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>导出</span>
+              <strong id="packageMetric">-</strong>
+            </div>
+          </section>
+
+          <section class="content-grid">
+            <article class="detail-panel">
+              <div class="tabs" role="tablist">
+                <button class="tab active" data-tab="statement" type="button">题面</button>
+                <button class="tab" data-tab="workflow" type="button">流程</button>
+                <button class="tab" data-tab="edit" type="button">编辑</button>
+                <button class="tab" data-tab="solution" type="button">解法</button>
+                <button class="tab" data-tab="code" type="button">代码</button>
+                <button class="tab" data-tab="reports" type="button">报告</button>
+              </div>
+              <div id="detailContent" class="detail-content empty-state">
+                <h3>暂无题目</h3>
+                <p>从题目库选择或新建一道题。</p>
+              </div>
+            </article>
+
+            <aside class="activity-panel">
+              <div class="panel-heading">
+                <h2>运行记录</h2>
+                <button id="clearLogButton" class="icon-button" type="button" title="清空运行记录" aria-label="清空运行记录">&#215;</button>
+              </div>
+              <div id="activityLog" class="activity-log"></div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <dialog id="generateDialog" class="generate-dialog" aria-labelledby="generateDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Generate</p>
+          <h2 id="generateDialogTitle">新建题目</h2>
+        </div>
+        <button id="closeGenerateButton" class="icon-button dialog-close" type="button" title="关闭" aria-label="关闭新建题目">&#215;</button>
+      </div>
+
+      <form id="generateForm" class="generation-form">
+        <div class="generation-form-grid">
+          <label class="field field-wide">
             <span>知识点</span>
             <input id="topicInput" name="topic" value="two pointers" autocomplete="off">
           </label>
@@ -40,7 +211,7 @@
             </div>
           </div>
 
-          <div class="generation-options">
+          <div class="generation-options field-wide">
             <label class="field count-field">
               <span>数量</span>
               <input id="countInput" name="count" type="number" min="1" max="5" value="1">
@@ -57,7 +228,7 @@
             </div>
           </div>
 
-          <details class="workflow-config">
+          <details class="workflow-config field-wide">
             <summary>人工确认步骤</summary>
             <div class="workflow-step-options">
               <label class="mini-check"><input type="checkbox" name="manual_steps" value="idea"><span>创意方向</span></label>
@@ -67,151 +238,16 @@
               <label class="mini-check"><input type="checkbox" name="manual_steps" value="generator"><span>数据生成器</span></label>
             </div>
           </details>
+        </div>
 
+        <div class="dialog-actions">
           <button class="primary-button" type="submit">
-            <span class="button-icon">+</span>
+            <span class="button-icon" aria-hidden="true">+</span>
             <span>生成题目</span>
           </button>
-        </form>
-
-        <div class="sidebar-secondary">
-          <details class="panel runtime-panel">
-            <summary class="panel-heading">
-              <span class="panel-title">运行状态</span>
-              <span id="runtimeModeText" class="status-pill">读取中</span>
-            </summary>
-            <div class="runtime-grid">
-              <div>
-                <span>模型</span>
-                <strong id="runtimeModelText">-</strong>
-              </div>
-              <div>
-                <span>接口</span>
-                <strong id="runtimeEndpointText">-</strong>
-              </div>
-              <div>
-                <span>限制</span>
-                <strong id="runtimeLimitsText">-</strong>
-              </div>
-            </div>
-          </details>
-
-          <section class="panel list-panel">
-            <div class="panel-heading">
-              <h2>题目列表</h2>
-              <button id="refreshButton" class="icon-button" type="button" title="刷新题目列表" aria-label="刷新题目列表">&#8635;</button>
-            </div>
-            <div class="filter-row">
-              <input id="problemSearchInput" class="filter-input" aria-label="搜索题目、知识点、标签" placeholder="搜索题目、知识点、标签">
-              <select id="sourceFilter" class="filter-select" aria-label="来源过滤">
-                <option value="all">全部来源</option>
-                <option value="llm">LLM</option>
-                <option value="mock">模板</option>
-                <option value="mock-after-llm-failure">模型失败降级</option>
-                <option value="mock-after-language-mismatch">语言不符降级</option>
-              </select>
-              <select id="languageFilter" class="filter-select" aria-label="语言过滤">
-                <option value="all">全部语言</option>
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-            <div id="problemList" class="problem-list"></div>
-          </section>
         </div>
-      </aside>
-
-      <main class="workspace">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Problem Package</p>
-            <h2 id="currentTitle">等待选择题目</h2>
-          </div>
-          <div class="toolbar">
-            <div class="validation-controls">
-              <label class="compact-field">
-                <span>轮数</span>
-                <input id="roundsInput" type="number" min="1" max="1000" value="100">
-              </label>
-              <label class="compact-field">
-                <span>超时</span>
-                <input id="timeoutInput" type="number" min="0.2" max="10" step="0.1" value="2">
-              </label>
-            </div>
-            <div class="action-controls">
-              <button id="reviewButton" class="secondary-button" type="button" disabled>
-                <span class="button-icon" aria-hidden="true">&#128269;</span>
-                <span>审查</span>
-              </button>
-              <button id="validateButton" class="secondary-button" type="button" disabled>
-                <span class="button-icon" aria-hidden="true">&#10003;</span>
-                <span>验证</span>
-              </button>
-              <button id="packageButton" class="secondary-button" type="button" disabled>
-                <span class="button-icon" aria-hidden="true">&#8681;</span>
-                <span>导出</span>
-              </button>
-              <button id="deleteButton" class="secondary-button danger-button" type="button" disabled>
-                <span class="button-icon" aria-hidden="true">&#215;</span>
-                <span>删除</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <section class="status-grid">
-          <div class="metric">
-            <span>来源</span>
-            <strong id="sourceMetric">-</strong>
-          </div>
-          <div class="metric">
-            <span>语言</span>
-            <strong id="languageMetric">-</strong>
-          </div>
-          <div class="metric">
-            <span>模型</span>
-            <strong id="llmMetric">-</strong>
-          </div>
-          <div class="metric">
-            <span>审查</span>
-            <strong id="reviewMetric">-</strong>
-          </div>
-          <div class="metric">
-            <span>对拍</span>
-            <strong id="validateMetric">-</strong>
-          </div>
-          <div class="metric">
-            <span>导出</span>
-            <strong id="packageMetric">-</strong>
-          </div>
-        </section>
-
-        <section class="content-grid">
-          <article class="detail-panel">
-            <div class="tabs" role="tablist">
-              <button class="tab active" data-tab="statement" type="button">题面</button>
-              <button class="tab" data-tab="workflow" type="button">流程</button>
-              <button class="tab" data-tab="edit" type="button">编辑</button>
-              <button class="tab" data-tab="solution" type="button">解法</button>
-              <button class="tab" data-tab="code" type="button">代码</button>
-              <button class="tab" data-tab="reports" type="button">报告</button>
-            </div>
-            <div id="detailContent" class="detail-content empty-state">
-              <h3>暂无题目</h3>
-              <p>从左侧生成或选择一道题。</p>
-            </div>
-          </article>
-
-          <aside class="activity-panel">
-            <div class="panel-heading">
-              <h2>运行记录</h2>
-              <button id="clearLogButton" class="icon-button" type="button" title="清空运行记录" aria-label="清空运行记录">&#215;</button>
-            </div>
-            <div id="activityLog" class="activity-log"></div>
-          </aside>
-        </section>
-      </main>
-    </div>
+      </form>
+    </dialog>
 
     <script src="/static/app.js"></script>
   </body>
